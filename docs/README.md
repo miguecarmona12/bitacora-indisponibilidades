@@ -18,9 +18,11 @@ Sistema para la gestión automatizada de indisponibilidades en entornos TI, orie
 
 ## 📂 Estructura del proyecto
 
-/frontend
 /backend
 /docs
+/frontend
+/scripts
+
 
 
 ## ⚙️ Instalación
