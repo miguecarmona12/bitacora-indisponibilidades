@@ -245,12 +245,15 @@ pip install fastapi "uvicorn[standard]" sqlalchemy psycopg2-binary python-multip
 # Ejecutar servidor
 uvicorn main:app --reload
 
+```bash
 
 El backend quedará disponible en:
 http://localhost:8000
 
 
 🔹 3. Ejecutar el Frontend (Interfaz)
+
+```bash
 
 Abre otra terminal y ejecuta:
 
@@ -262,9 +265,11 @@ npm install
 # Ejecutar aplicación
 npm run dev
 
+```bash
 
 El frontend estará disponible en:
 http://localhost:5173
+
 
 
 🧪 Documentación de la API
