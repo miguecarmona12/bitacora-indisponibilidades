@@ -1,0 +1,52 @@
+// Pegar este código en https://dbdiagram.io/d para abrir y editar el esquema visualmente
+
+Table empresas {
+  id integer [primary key]
+  nombre varchar(100) [unique, not null]
+}
+
+Table aplicaciones {
+  id integer [primary key]
+  nombre varchar(100) [unique, not null]
+}
+
+Table empresa_aplicacion {
+  empresa_id integer [pk, ref: > empresas.id]
+  aplicacion_id integer [pk, ref: > aplicaciones.id]
+}
+
+Table categorias {
+  id integer [primary key]
+  nombre varchar(100) [unique, not null]
+}
+
+Table productos {
+  id integer [primary key]
+  nombre varchar(150) [unique, not null]
+  categoria_id integer [ref: > categorias.id]
+}
+
+Table usuarios {
+  id integer [primary key]
+  username varchar(50) [unique, not null]
+  email varchar(100) [unique, not null]
+  hashed_password varchar(200) [not null]
+  rol varchar(20) [not null]
+  empresa_id integer [ref: > empresas.id]
+}
+
+Table incidentes {
+  id integer [primary key]
+  empresa_id integer [ref: > empresas.id]
+  aplicacion_id integer [ref: > aplicaciones.id]
+  categoria_id integer [ref: > categorias.id]
+  producto_id integer [ref: > productos.id]
+  fecha_inicio timestamp
+  duracion_minutos float
+  motivo text
+  solucion text
+  ticket varchar(100)
+  mes_reporte varchar(50)
+  usuario_id integer [ref: > usuarios.id]
+  fecha_registro timestamp
+}
