@@ -154,7 +154,7 @@ python -m venv venv
 .\venv\Scripts\activate
 
 # Instalar dependencias
-pip install fastapi "uvicorn[standard]" sqlalchemy psycopg2-binary python-multipart python-jose[cryptography] passlib[bcrypt] pydantic email-validator python-dotenv
+pip install fastapi "uvicorn[standard]" sqlalchemy psycopg2-binary python-multipart python-jose[cryptography] passlib bcrypt==4.0.1 pydantic email-validator python-dotenv
 
 # Ejecutar servidor
 uvicorn main:app --reload

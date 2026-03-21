@@ -16,8 +16,7 @@ if [ ! -d "venv" ]; then
     
     echo "📥 Instalando requerimientos. Esto tardará unos segundos..."
     # Activar venv en Git Bash (Windows)
-    source venv/Scripts/activate
-    pip install fastapi "uvicorn[standard]" sqlalchemy psycopg2-binary python-multipart python-jose[cryptography] passlib[bcrypt] pydantic email-validator python-dotenv
+    pip install fastapi "uvicorn[standard]" sqlalchemy psycopg2-binary python-multipart python-jose[cryptography] passlib bcrypt==4.0.1 pydantic email-validator python-dotenv
 else
     echo "✅ Entorno Python detectado."
     source venv/Scripts/activate
