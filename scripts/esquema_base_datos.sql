@@ -49,7 +49,7 @@ CREATE INDEX ix_usuarios_email ON usuarios(email);
 -- Creamos el Administrador por Defecto (Clave: admin123)
 -- El hash corresponde a bcrypt salt genérico para "admin123"
 INSERT INTO usuarios (username, email, hashed_password, rol) 
-VALUES ('admin', 'admin@localhost', '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', 'admin');
+VALUES ('admin', 'admin@localhost', '$2b$12$ilZjAtLGvzeDaocOfFPN0uDW5A9WWDNh1EeYfj2v.Mx/uG8eo5aFa', 'admin');
 
 -- 7. Tabla Histórica de Incidentes (Bitácora)
 CREATE TABLE incidentes (
