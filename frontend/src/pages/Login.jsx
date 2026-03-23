@@ -50,10 +50,10 @@ const Login = () => {
 
           {/* Branding */}
           <div>
-            <h1 className="text-5xl font-extrabold tracking-tight">
-              Bitácora
-            </h1>
-            <p className="text-violet-100 mt-2 text-lg">
+           <div>
+           <img src="/BITA-Logo.png" alt="Bita LOGO" className="h-20 w-auto" />
+          </div>
+            <p className="text-violet-100 text-lg">
               Plataforma inteligente de gestión operativa
             </p>
           </div>
