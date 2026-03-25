@@ -1,71 +1,57 @@
 #!/bin/bash
 
-set -e  # corta ejecución si algo falla
+set -e
 
 echo "========================================================"
-echo "🚀 INICIANDO SISTEMA AUTOMÁTICO: BITÁCORA MVP"
+echo "🚀 INICIANDO SISTEMA AUTOMÁTICO: BITÁCORA MVP (LOCAL)"
 echo "========================================================"
 
 ROOT_DIR=$(pwd)
 
 # --------------------------------------------------------
-# 1. BACKEND (PYTHON / FASTAPI)
+# 1. BACKEND
 # --------------------------------------------------------
 echo ""
 echo "⚙️  Paso 1: Backend..."
 cd "$ROOT_DIR/backend" || exit
 
-# Detectar Python correctamente
 PYTHON_CMD=$(command -v python || command -v python3)
 
 if [ -z "$PYTHON_CMD" ]; then
-    echo "❌ Python no está instalado o no está en PATH"
+    echo "❌ Python no está instalado"
     exit 1
 fi
 
 echo "🐍 Usando Python: $PYTHON_CMD"
 
-# Validar o recrear entorno virtual
-if [ ! -f "venv/Scripts/python.exe" ]; then
-    echo "📦 Creando/Recreando entorno virtual..."
-    rm -rf venv
+# Para Windows Git Bash
+if [ ! -d "venv" ]; then
+    echo "📦 Creando entorno virtual..."
     "$PYTHON_CMD" -m venv venv
 fi
 
-# Activar entorno (Git Bash en Windows)
+# Activar entorno (Windows Git Bash)
 source venv/Scripts/activate
 
-# Validar que el python del venv funciona
-if ! python -c "import sys" &>/dev/null; then
-    echo "💥 venv corrupto, recreando..."
-    deactivate 2>/dev/null || true
-    rm -rf venv
-    "$PYTHON_CMD" -m venv venv
-    source venv/Scripts/activate
-fi
-
 echo "📥 Instalando dependencias backend..."
+pip install -r requirements.txt
 
-if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
-else
-    pip install fastapi "uvicorn[standard]" sqlalchemy psycopg2-binary python-multipart python-jose[cryptography] passlib bcrypt==4.0.1 pydantic email-validator python-dotenv
-fi
+# Variable para local
+export DATABASE_URL="postgresql://admin:admin123@localhost:5432/bitacora"
 
 echo "🔥 Backend en http://localhost:8000"
-uvicorn main:app --reload &
+uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 cd "$ROOT_DIR"
 
 # --------------------------------------------------------
-# 2. FRONTEND (REACT / VITE)
+# 2. FRONTEND
 # --------------------------------------------------------
 echo ""
 echo "⚙️  Paso 2: Frontend..."
 cd "$ROOT_DIR/frontend" || exit
 
-# Validar Node
 if ! command -v npm &>/dev/null; then
     echo "❌ Node.js no está instalado"
     kill $BACKEND_PID 2>/dev/null
@@ -74,32 +60,29 @@ fi
 
 echo "🟢 Node detectado: $(node -v)"
 
-# Validar dependencias reales (no solo carpeta)
-if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/vite" ]; then
+if [ ! -d "node_modules" ]; then
     echo "📦 Instalando dependencias frontend..."
-    rm -rf node_modules package-lock.json
     npm install
-else
-    echo "✅ Dependencias OK"
 fi
+
+# Variable para frontend local
+export VITE_API_URL="http://localhost:8000"
 
 echo ""
 echo "========================================================"
 echo "💥 SISTEMA LISTO Y CORRIENDO"
+echo "👉 Frontend: http://localhost:5173"
+echo "👉 Backend: http://localhost:8000"
 echo "👉 Ctrl + C para apagar TODO"
 echo "========================================================"
 echo ""
 
-# Levantar frontend con fallback robusto
-npm run dev || npx vite
+npm run dev
 
 # --------------------------------------------------------
-# 3. SHUTDOWN LIMPIO
+# 3. SHUTDOWN
 # --------------------------------------------------------
 echo ""
 echo "🛑 Apagando sistema..."
-
 kill $BACKEND_PID 2>/dev/null || true
-
 echo "✅ Backend detenido"
-echo "👋 Adiós"

@@ -1,7 +1,6 @@
 version: "3.9"
 
 services:
-
   db:
     image: postgres:15
     container_name: postgres_db
@@ -14,27 +13,57 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bitacora"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bitacora_network
 
   backend:
     build: ./backend
     container_name: fastapi_backend
+    restart: always
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/bitacora
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    networks:
+      - bitacora_network
+    command: >
+      sh -c "python -c 'from database import init_db; init_db()' &&
+             uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://backend:8000
+        VITE_API_URL: http://backend:8000  # ← Usa backend:8000 para Docker
     container_name: react_frontend
+    restart: always
     depends_on:
       - backend
     ports:
       - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://backend:8000  # ← También pasarlo como variable
+    networks:
+      - bitacora_network
+
+networks:
+  bitacora_network:
+    driver: bridge
 
 volumes:
   postgres_data:
