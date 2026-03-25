@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Settings, LayoutDashboard, Users, LogOut } from 'lucide-react';
+import { Activity, Settings, LayoutDashboard, Users, LogOut, AppleIcon, DamIcon } from 'lucide-react';
 import { authService } from '../services/api';
 
 const Navbar = () => {
@@ -19,6 +19,7 @@ const Navbar = () => {
   const navItems = [
     { path: '/', name: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'tecnico', 'cliente'] },
     { path: '/bitacora', name: 'Bitácora', icon: <Activity size={20} />, roles: ['admin', 'tecnico'] },
+    //{ path: '/eventos', name: 'Eventos', icon: <DamIcon size={20} />, roles: ['admin', 'tecnico'] },
     { path: '/configuracion', name: 'Catálogos', icon: <Settings size={20} />, roles: ['admin'] },
     { path: '/usuarios', name: 'Usuarios', icon: <Users size={20} />, roles: ['admin'] },
   ];
