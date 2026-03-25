@@ -47,6 +47,15 @@ Listado de todos los incidentes registrados con su estado.
 
 ---
 
+---
+
+### 📋 Gestion de Usuario
+Listado de todos los incidentes registrados con su estado.
+
+![Lista](docs/img/gestion_de_usuarios.png)
+
+---
+
 ## 🚀 Funcionalidades principales
 
 El sistema permite:
