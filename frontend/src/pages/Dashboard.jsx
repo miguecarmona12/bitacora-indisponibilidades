@@ -162,6 +162,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const currentUser = authService.getCurrentUser();
+  const empresaFijada = currentUser.rol === 'cliente' ? parseInt(currentUser.empresa_id) : null;
+
+
 
   const [filtroEmpresa, setFiltroEmpresa] = useState('');
   const [filtroAplicacion, setFiltroAplicacion] = useState('');
@@ -192,18 +195,19 @@ const Dashboard = () => {
   }, []);
 
   const { stats, chartDataApps, chartDataCats, chartDataProds, incidentesFiltrados } = useMemo(() => {
-    const dataFiltrada = incidentes.filter(inc => {
-      if (filtroEmpresa    && inc.empresa_id    !== parseInt(filtroEmpresa))    return false;
-      if (filtroAplicacion && inc.aplicacion_id !== parseInt(filtroAplicacion)) return false;
-      if (filtroCategoria  && inc.categoria_id  !== parseInt(filtroCategoria))  return false;
-      if (filtroProducto   && inc.producto_id   !== parseInt(filtroProducto))   return false;
-      if (fechaInicio && new Date(inc.fecha_inicio) < new Date(fechaInicio))    return false;
-      if (fechaFin) {
-        const end = new Date(fechaFin); end.setHours(23,59,59,999);
-        if (new Date(inc.fecha_inicio) > end) return false;
-      }
-      return true;
-    });
+   const dataFiltrada = incidentes.filter(inc => {
+  const empresaActiva = empresaFijada ?? (filtroEmpresa ? parseInt(filtroEmpresa) : null);
+  if (empresaActiva && inc.empresa_id !== empresaActiva) return false;  // ← reemplazada
+  if (filtroAplicacion && inc.aplicacion_id !== parseInt(filtroAplicacion)) return false;
+  if (filtroCategoria  && inc.categoria_id  !== parseInt(filtroCategoria))  return false;
+  if (filtroProducto   && inc.producto_id   !== parseInt(filtroProducto))   return false;
+  if (fechaInicio && new Date(inc.fecha_inicio) < new Date(fechaInicio))    return false;
+  if (fechaFin) {
+    const end = new Date(fechaFin); end.setHours(23,59,59,999);
+    if (new Date(inc.fecha_inicio) > end) return false;
+  }
+  return true;
+});
 
     const totalTiempo = Math.round(dataFiltrada.reduce((s, i) => s + i.duracion_minutos, 0) * 10) / 10;
     const prodAfect   = new Set(dataFiltrada.filter(i => i.producto_id).map(i => i.producto_id)).size;
@@ -234,7 +238,7 @@ const Dashboard = () => {
       chartDataProds: fmt(mapProd, productos,    'Prod').filter(p => p.inactividad > 0).sort((a,b) => b.inactividad - a.inactividad),
       incidentesFiltrados: dataFiltrada,
     };
-  }, [incidentes, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, aplicaciones, categorias, productos]);
+  }, [incidentes, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, aplicaciones, categorias, productos,empresaFijada ]);
 
   const limpiarFiltros = () => {
     setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria('');
