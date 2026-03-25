@@ -3,14 +3,19 @@ from datetime import datetime
 from typing import List, Optional
 
 # --- EMPRESA ---
+
+
 class EmpresaBase(BaseModel):
     nombre: str
+
 
 class EmpresaCreate(EmpresaBase):
     pass
 
+
 class EmpresaUpdate(BaseModel):
     nombre: str
+
 
 class EmpresaResponse(EmpresaBase):
     id: int
@@ -21,12 +26,15 @@ class EmpresaResponse(EmpresaBase):
 class AplicacionBase(BaseModel):
     nombre: str
 
+
 class AplicacionCreate(AplicacionBase):
     empresa_ids: List[int] = []
+
 
 class AplicacionUpdate(BaseModel):
     nombre: str | None = None
     empresa_ids: List[int] | None = None
+
 
 class AplicacionResponse(AplicacionBase):
     id: int
@@ -38,11 +46,14 @@ class AplicacionResponse(AplicacionBase):
 class CategoriaBase(BaseModel):
     nombre: str
 
+
 class CategoriaCreate(CategoriaBase):
     pass
 
+
 class CategoriaUpdate(BaseModel):
     nombre: str
+
 
 class CategoriaResponse(CategoriaBase):
     id: int
@@ -54,12 +65,15 @@ class ProductoBase(BaseModel):
     nombre: str
     categoria_id: int
 
+
 class ProductoCreate(ProductoBase):
     pass
+
 
 class ProductoUpdate(BaseModel):
     nombre: str | None = None
     categoria_id: int | None = None
+
 
 class ProductoResponse(ProductoBase):
     id: int
@@ -80,6 +94,7 @@ class IncidenteBase(BaseModel):
     ticket: str | None = None
     mes_reporte: str
 
+
 class IncidenteUpdate(BaseModel):
     empresa_id: int | None = None
     aplicacion_id: int | None = None
@@ -90,18 +105,22 @@ class IncidenteUpdate(BaseModel):
     solucion: str | None = None
     ticket: str | None = None
 
+
 class UsuarioBase(BaseModel):
     username: str
     email: str
     rol: str
     empresa_id: int | None = None
 
+
 class UsuarioCreate(UsuarioBase):
     password: str
+
 
 class UsuarioResponse(UsuarioBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
+
 
 class Token(BaseModel):
     access_token: str
@@ -110,11 +129,14 @@ class Token(BaseModel):
     username: str
     empresa_id: int | None = None
 
+
 class TokenData(BaseModel):
     username: str | None = None
 
+
 class IncidenteCreate(IncidenteBase):
     pass
+
 
 class IncidenteResponse(IncidenteBase):
     id: int
@@ -125,3 +147,12 @@ class IncidenteResponse(IncidenteBase):
     producto: Optional[ProductoResponse] = None
     usuario: Optional[UsuarioResponse] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- Usuarios ---
+class UsuarioUpdate(BaseModel):
+    username:   Optional[str] = None
+    email:      Optional[str] = None
+    password:   Optional[str] = None
+    rol:        Optional[str] = None
+    empresa_id: Optional[int] = None
