@@ -147,15 +147,12 @@ Sigue estos pasos para ejecutar el sistema desde cero.
 ```bash
 git clone https://github.com/miguecarmona12/bitacora-indisponibilidades.git
 cd bitacora-indisponibilidades
-🔹 2. Ejecutar el Backend
-
 ```
 
-El backend estará disponible en:
-http://localhost:8000
 
 
-Ejecutar el sistema completo
+
+Ejecutar el sistema completo ejecutar el script 
 
 ```bash
 
@@ -166,6 +163,8 @@ sh start.sh
 El frontend estará disponible en:
 http://localhost:5173
 
+El backend estará disponible en:
+http://localhost:8000
 
 🧪 Documentación de la API
 
