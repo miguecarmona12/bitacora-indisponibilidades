@@ -1,5 +1,4 @@
-version: "3.9"
-
+# docker-compose.yml (sin la línea version)
 services:
   db:
     image: postgres:15
@@ -45,7 +44,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://backend:8000  # ← Usa backend:8000 para Docker
+        VITE_API_URL: http://localhost:8000
     container_name: react_frontend
     restart: always
     depends_on:
@@ -57,7 +56,7 @@ services:
       - /app/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://backend:8000  # ← También pasarlo como variable
+      - VITE_API_URL=http://localhost:8000
     networks:
       - bitacora_network
 
