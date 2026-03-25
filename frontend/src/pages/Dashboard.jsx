@@ -3,7 +3,7 @@ import { bitacoraService, authService } from '../services/api';
 import {
   BarChart3, TrendingUp, AlertCircle, Clock,
   AppWindow, Server, Activity, Filter, X,
-  Zap, Calendar, ChevronDown, Wifi
+  Zap, Calendar, ChevronDown, Wifi, FolderTree
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -160,11 +160,10 @@ const Dashboard = () => {
   const [categorias, setCategorias] = useState([]);
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filtroOpen, setFiltroOpen] = useState(false);
 
   const currentUser = authService.getCurrentUser();
   const empresaFijada = currentUser.rol === 'cliente' ? parseInt(currentUser.empresa_id) : null;
-
-
 
   const [filtroEmpresa, setFiltroEmpresa] = useState('');
   const [filtroAplicacion, setFiltroAplicacion] = useState('');
@@ -195,28 +194,41 @@ const Dashboard = () => {
   }, []);
 
   const { stats, chartDataApps, chartDataCats, chartDataProds, incidentesFiltrados } = useMemo(() => {
-   const dataFiltrada = incidentes.filter(inc => {
-  const empresaActiva = empresaFijada ?? (filtroEmpresa ? parseInt(filtroEmpresa) : null);
-  if (empresaActiva && inc.empresa_id !== empresaActiva) return false;  // ← reemplazada
-  if (filtroAplicacion && inc.aplicacion_id !== parseInt(filtroAplicacion)) return false;
-  if (filtroCategoria  && inc.categoria_id  !== parseInt(filtroCategoria))  return false;
-  if (filtroProducto   && inc.producto_id   !== parseInt(filtroProducto))   return false;
-  if (fechaInicio && new Date(inc.fecha_inicio) < new Date(fechaInicio))    return false;
-  if (fechaFin) {
-    const end = new Date(fechaFin); end.setHours(23,59,59,999);
-    if (new Date(inc.fecha_inicio) > end) return false;
-  }
-  return true;
-});
+    const dataFiltrada = incidentes.filter(inc => {
+      const empresaActiva = empresaFijada ?? (filtroEmpresa ? parseInt(filtroEmpresa) : null);
+      if (empresaActiva && inc.empresa_id !== empresaActiva) return false;
+      if (filtroAplicacion && inc.aplicacion_id !== parseInt(filtroAplicacion)) return false;
+      if (filtroCategoria  && inc.categoria_id  !== parseInt(filtroCategoria))  return false;
+      if (filtroProducto   && inc.producto_id   !== parseInt(filtroProducto))   return false;
+      if (fechaInicio && new Date(inc.fecha_inicio) < new Date(fechaInicio))    return false;
+      if (fechaFin) {
+        const end = new Date(fechaFin); end.setHours(23,59,59,999);
+        if (new Date(inc.fecha_inicio) > end) return false;
+      }
+      return true;
+    });
 
     const totalTiempo = Math.round(dataFiltrada.reduce((s, i) => s + i.duracion_minutos, 0) * 10) / 10;
     const prodAfect   = new Set(dataFiltrada.filter(i => i.producto_id).map(i => i.producto_id)).size;
     const appAfect    = new Set(dataFiltrada.filter(i => i.aplicacion_id).map(i => i.aplicacion_id)).size;
 
     const mapApp = {}, mapCat = {}, mapProd = {};
-    aplicaciones.forEach(a => mapApp[a.id] = 0);
-    categorias.forEach(c   => mapCat[c.id] = 0);
-    productos.forEach(p    => mapProd[p.id] = 0);
+
+    const appsParaGrafico = empresaFijada
+      ? aplicaciones.filter(a => a.empresas && a.empresas.some(e => e.id === empresaFijada))
+      : aplicaciones;
+
+    const catsParaGrafico = empresaFijada
+      ? categorias.filter(c => dataFiltrada.some(i => i.categoria_id === c.id))
+      : categorias;
+
+    const prodsParaGrafico = empresaFijada
+      ? productos.filter(p => dataFiltrada.some(i => i.producto_id === p.id))
+      : productos;
+
+    appsParaGrafico.forEach(a => mapApp[a.id] = 0);
+    catsParaGrafico.forEach(c => mapCat[c.id] = 0);
+    prodsParaGrafico.forEach(p => mapProd[p.id] = 0);
 
     dataFiltrada.forEach(inc => {
       if (inc.aplicacion_id) mapApp[inc.aplicacion_id]  = (mapApp[inc.aplicacion_id]  ?? 0) + inc.duracion_minutos;
@@ -233,12 +245,25 @@ const Dashboard = () => {
 
     return {
       stats: { totalIncidentes: dataFiltrada.length, tiempoInactividad: totalTiempo, productosAfectados: prodAfect, aplicacionesAfectadas: appAfect },
-      chartDataApps:  fmt(mapApp,  aplicaciones, 'App').sort((a,b)  => a.disponibilidad - b.disponibilidad),
-      chartDataCats:  fmt(mapCat,  categorias,   'Cat').sort((a,b)  => a.disponibilidad - b.disponibilidad),
-      chartDataProds: fmt(mapProd, productos,    'Prod').filter(p => p.inactividad > 0).sort((a,b) => b.inactividad - a.inactividad),
+      chartDataApps:  fmt(mapApp,  appsParaGrafico, 'App').sort((a,b)  => a.disponibilidad - b.disponibilidad),
+      chartDataCats:  fmt(mapCat,  catsParaGrafico, 'Cat').sort((a,b)  => a.disponibilidad - b.disponibilidad),
+      chartDataProds: fmt(mapProd, prodsParaGrafico, 'Prod').filter(p => p.inactividad > 0).sort((a,b) => b.inactividad - a.inactividad),
       incidentesFiltrados: dataFiltrada,
     };
-  }, [incidentes, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, aplicaciones, categorias, productos,empresaFijada ]);
+  }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, aplicaciones, categorias, productos]);
+
+  /* Listas filtradas para los selects */
+  const aplicacionesFiltradas = empresaFijada
+    ? aplicaciones.filter(a => a.empresas && a.empresas.some(e => e.id === empresaFijada))
+    : aplicaciones;
+
+  const categoriasFiltradas = empresaFijada
+    ? categorias.filter(c => incidentesFiltrados.some(i => i.categoria_id === c.id))
+    : categorias;
+
+  const productosFiltrados = empresaFijada
+    ? productos.filter(p => incidentesFiltrados.some(i => i.producto_id === p.id))
+    : productos;
 
   const limpiarFiltros = () => {
     setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria('');
@@ -291,7 +316,6 @@ const Dashboard = () => {
           position: relative;
         }
 
-        /* Subtle mesh background */
         .dash::before {
           content: '';
           position: fixed;
@@ -332,8 +356,8 @@ const Dashboard = () => {
         .page-header {
           display: flex;
           flex-direction: column;
-          gap: 24px;
-          margin-bottom: 40px;
+          gap: 16px;
+          margin-bottom: 20px;
           animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
         }
         @media (min-width: 860px) {
@@ -402,35 +426,73 @@ const Dashboard = () => {
           border-radius: 99px;
         }
 
-        /* ── FILTER BAR ── */
-        .filter-bar {
+        /* ── FILTER TOGGLE BTN ── */
+        .filter-toggle-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          font-family: var(--font-sans);
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--gray-700);
+          background: var(--white);
+          border: 1px solid var(--gray-200);
+          border-radius: 14px;
+          padding: 10px 18px;
+          cursor: pointer;
+          box-shadow: var(--shadow-sm);
+          transition: box-shadow 0.2s, border-color 0.2s;
+          position: relative;
+          align-self: flex-start;
+        }
+        .filter-toggle-btn:hover { box-shadow: var(--shadow-md); border-color: var(--gray-300); }
+        .filter-toggle-dot {
+          width: 7px; height: 7px;
+          border-radius: 50%;
+          background: var(--fuchsia);
+          position: absolute;
+          top: 7px; right: 7px;
+        }
+
+        /* ── FILTER PANEL ── */
+        .filter-panel {
           background: var(--white);
           border: 1px solid var(--gray-200);
           border-radius: var(--radius-2xl);
-          padding: 14px 18px;
+          box-shadow: var(--shadow-md);
+          margin-bottom: 24px;
+          animation: fadeUp 0.25s cubic-bezier(0.16,1,0.3,1) both;
+          overflow: hidden;
+        }
+        .filter-panel-inner {
           display: flex;
           flex-wrap: wrap;
-          align-items: center;
-          gap: 10px;
-          box-shadow: var(--shadow-sm);
-          align-self: flex-start;
-          max-width: 100%;
+          align-items: flex-end;
+          gap: 20px;
+          padding: 20px 24px;
         }
-
-        .filter-bar-label {
+        .filter-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .filter-group-label {
           display: flex;
           align-items: center;
-          gap: 6px;
-          font-size: 10px;
-          font-weight: 700;
-          letter-spacing: 0.14em;
+          gap: 4px;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 0.16em;
           text-transform: uppercase;
           color: var(--gray-400);
-          padding-right: 8px;
-          border-right: 1px solid var(--gray-200);
         }
-
-        .filter-sep { width: 1px; height: 20px; background: var(--gray-200); flex-shrink: 0; }
+        .filter-sep-v {
+          width: 1px;
+          height: 40px;
+          background: var(--gray-200);
+          flex-shrink: 0;
+          align-self: center;
+        }
 
         /* date input */
         .date-input {
@@ -489,6 +551,7 @@ const Dashboard = () => {
           padding: 7px 13px;
           cursor: pointer;
           transition: background 0.15s, border-color 0.15s;
+          align-self: flex-end;
         }
         .clear-btn:hover { background: #FFE4E6; border-color: #FDA4AF; }
 
@@ -544,7 +607,6 @@ const Dashboard = () => {
         }
         .kpi-sub { font-size: 11px; color: var(--gray-400); font-weight: 500; margin-top: 3px; }
 
-        /* shimmer highlight on hover */
         .kpi-shimmer {
           position: absolute;
           top: 0; left: 0; width: 40%; height: 100%;
@@ -607,10 +669,8 @@ const Dashboard = () => {
           width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
         }
 
-        /* Recharts overrides */
         .recharts-legend-item-text { color: var(--gray-500) !important; font-family: var(--font-sans) !important; font-size: 10px !important; font-weight: 600 !important; }
 
-        /* Tooltip */
         .c-tooltip {
           background: var(--white);
           border: 1px solid var(--gray-200);
@@ -635,7 +695,6 @@ const Dashboard = () => {
           margin-top: 4px;
         }
 
-        /* Empty */
         .empty-chart {
           flex: 1;
           display: flex; flex-direction: column;
@@ -777,7 +836,6 @@ const Dashboard = () => {
           color: var(--gray-300);
         }
 
-        /* ── SCROLL CUSTOM ── */
         .table-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
         .table-scroll::-webkit-scrollbar-track { background: transparent; }
         .table-scroll::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 99px; }
@@ -807,59 +865,81 @@ const Dashboard = () => {
               </p>
             </div>
 
-            {/* ── FILTER BAR ── */}
-            <div className="filter-bar">
-              <div className="filter-bar-label">
-                <Filter size={11} />
-                Filtrar
-              </div>
-
-              {/* Dates */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input
-                  type="date" className="date-input"
-                  value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
-                  title="Fecha inicio"
-                />
-                <span className="date-sep">—</span>
-                <input
-                  type="date" className="date-input"
-                  value={fechaFin} onChange={e => setFechaFin(e.target.value)}
-                  title="Fecha fin"
-                />
-              </div>
-
-              <div className="filter-sep" />
-
-              {currentUser.rol !== 'cliente' && (
-                <FilterSelect value={filtroEmpresa} onChange={e => setFiltroEmpresa(e.target.value)} gradFrom="#8B5CF6" gradTo="#D946EF">
-                  <option value="">Todas las Redes</option>
-                  {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-                </FilterSelect>
-              )}
-
-              <FilterSelect value={filtroAplicacion} onChange={e => setFiltroAplicacion(e.target.value)} gradFrom="#D946EF" gradTo="#EC4899">
-                <option value="">Todas las Apps</option>
-                {aplicaciones.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-              </FilterSelect>
-
-              <FilterSelect value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} gradFrom="#EC4899" gradTo="#F43F5E">
-                <option value="">Todas las Cat.</option>
-                {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </FilterSelect>
-
-              <FilterSelect value={filtroProducto} onChange={e => setFiltroProducto(e.target.value)} gradFrom="#F59E0B" gradTo="#F97316">
-                <option value="">Todos los Prod.</option>
-                {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-              </FilterSelect>
-
-              {hayFiltros && (
-                <button className="clear-btn" onClick={limpiarFiltros}>
-                  <X size={10} /> Limpiar
-                </button>
-              )}
-            </div>
+            {/* ── FILTER TOGGLE BTN ── */}
+            <button
+              className="filter-toggle-btn"
+              onClick={() => setFiltroOpen(o => !o)}
+            >
+              <Filter size={13} />
+              Filtros
+              {hayFiltros && <span className="filter-toggle-dot" />}
+              <ChevronDown size={11} style={{ transform: filtroOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            </button>
           </div>
+
+          {/* ── FILTER PANEL (desplegable) ── */}
+          {filtroOpen && (
+            <div className="filter-panel">
+              <div className="filter-panel-inner">
+
+                {/* Fechas */}
+                <div className="filter-group">
+                  <label className="filter-group-label"><Calendar size={10} /> Fechas</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="date" className="date-input" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
+                    <span className="date-sep">—</span>
+                    <input type="date" className="date-input" value={fechaFin} onChange={e => setFechaFin(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="filter-sep-v" />
+
+                {/* Redes — solo para no clientes */}
+                {currentUser.rol !== 'cliente' && (
+                  <div className="filter-group">
+                    <label className="filter-group-label"><Wifi size={10} /> Red</label>
+                    <FilterSelect value={filtroEmpresa} onChange={e => setFiltroEmpresa(e.target.value)} gradFrom="#8B5CF6" gradTo="#D946EF">
+                      <option value="">Todas las Redes</option>
+                      {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                    </FilterSelect>
+                  </div>
+                )}
+
+                {/* Apps */}
+                <div className="filter-group">
+                  <label className="filter-group-label"><AppWindow size={10} /> App</label>
+                  <FilterSelect value={filtroAplicacion} onChange={e => setFiltroAplicacion(e.target.value)} gradFrom="#D946EF" gradTo="#EC4899">
+                    <option value="">Todas las Apps</option>
+                    {aplicacionesFiltradas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+                  </FilterSelect>
+                </div>
+
+                {/* Categorías */}
+                <div className="filter-group">
+                  <label className="filter-group-label"><FolderTree size={10} /> Categoría</label>
+                  <FilterSelect value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} gradFrom="#EC4899" gradTo="#F43F5E">
+                    <option value="">Todas las Cat.</option>
+                    {categoriasFiltradas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </FilterSelect>
+                </div>
+
+                {/* Productos */}
+                <div className="filter-group">
+                  <label className="filter-group-label"><Server size={10} /> Producto</label>
+                  <FilterSelect value={filtroProducto} onChange={e => setFiltroProducto(e.target.value)} gradFrom="#F59E0B" gradTo="#F97316">
+                    <option value="">Todos los Prod.</option>
+                    {productosFiltrados.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </FilterSelect>
+                </div>
+
+                {hayFiltros && (
+                  <button className="clear-btn" onClick={limpiarFiltros}>
+                    <X size={10} /> Limpiar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div className="loading-wrap">

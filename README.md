@@ -47,15 +47,6 @@ Listado de todos los incidentes registrados con su estado.
 
 ---
 
----
-
-### 📋 Gestion de Usuario
-Listado de todos los incidentes registrados con su estado.
-
-![Lista](docs/img/gestion_de_usuarios.png)
-
----
-
 ## 🚀 Funcionalidades principales
 
 El sistema permite:
@@ -138,6 +129,15 @@ Usuario → Frontend → Backend → Base de Datos
 
 ## ⚙️ ¿Cómo ejecutar el proyecto?
 
+Requisitos:
+
+Python 3.10 o superior
+
+PostgreSQL en ejecución
+
+node.js 
+
+
 Sigue estos pasos para ejecutar el sistema desde cero.
 
 ---
@@ -148,26 +148,6 @@ Sigue estos pasos para ejecutar el sistema desde cero.
 git clone https://github.com/miguecarmona12/bitacora-indisponibilidades.git
 cd bitacora-indisponibilidades
 🔹 2. Ejecutar el Backend
-Requisitos:
-
-Python 3.10 o superior
-
-PostgreSQL en ejecución
-
-cd backend
-
-# Crear entorno virtual
-python -m venv venv
-
-# Activar entorno (Windows)
-.\venv\Scripts\activate
-
-# Instalar dependencias
-pip install fastapi "uvicorn[standard]" sqlalchemy psycopg2-binary python-multipart python-jose[cryptography] passlib bcrypt==4.0.1 pydantic email-validator python-dotenv
-
-# Ejecutar servidor
-uvicorn main:app --reload
-
 
 ```
 
@@ -175,23 +155,11 @@ El backend estará disponible en:
 http://localhost:8000
 
 
-
-
-
-🔹 3. Ejecutar el Frontend
-
+Ejecutar el sistema completo
 
 ```bash
 
-Abre otra terminal y ejecuta:
-
-cd frontend
-
-# Instalar dependencias
-npm install
-
-# Ejecutar aplicación
-npm run dev
+sh start.sh
 
 ```
 
