@@ -12,25 +12,52 @@ const Login = () => {
 
   const navigate = useNavigate();
 
+  const handleAuthSuccess = (data) => {
+    if (!data?.access_token) {
+      throw new Error('Token inválido');
+    }
+
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('rol', data.rol);
+    localStorage.setItem('username', data.username);
+
+    if (data.empresa_id) {
+      localStorage.setItem('empresa_id', data.empresa_id);
+    }
+
+    // 🔥 Redirección por rol (PRO)
+    if (data.rol === 'Dashboard') {
+      navigate('/');
+    } else {
+      navigate('/');
+    }
+  };
+
+  const handleAuthError = (err) => {
+    if (err.response) {
+      setError(err.response.data.detail || 'Error en credenciales');
+    } else {
+      setError('Error de conexión con el servidor');
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    // 🔥 Validación previa
+    if (!username || !password) {
+      setError('Todos los campos son obligatorios');
+      return;
+    }
+
     setLoading(true);
+    setError('');
 
     try {
       const data = await authService.login(username, password);
-
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('rol', data.rol);
-      localStorage.setItem('username', data.username);
-
-      if (data.empresa_id) {
-        localStorage.setItem('empresa_id', data.empresa_id);
-      }
-
-      setError('');
-      navigate('/');
+      handleAuthSuccess(data);
     } catch (err) {
-      setError('Credenciales incorrectas o problema de red.');
+      handleAuthError(err);
     } finally {
       setLoading(false);
     }
@@ -42,23 +69,18 @@ const Login = () => {
       {/* 🔹 Panel izquierdo */}
       <div className="hidden lg:flex w-1/2 relative bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-12 overflow-hidden">
 
-        {/* fondos decorativos */}
         <div className="absolute top-0 left-0 w-72 h-72 bg-white/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 right-0 w-72 h-72 bg-black/20 rounded-full blur-3xl"></div>
 
         <div className="relative z-10 flex flex-col justify-center text-white max-w-lg space-y-8">
 
-          {/* Branding */}
           <div>
-           <div>
-           <img src="/BITA-Logo.png" alt="Bita LOGO" className="h-20 w-auto" />
-          </div>
+            <img src="/BITA-Logo.png" alt="Bita LOGO" className="h-20 w-auto" />
             <p className="text-violet-100 text-lg">
               Plataforma inteligente de gestión operativa
             </p>
           </div>
 
-          {/* Features */}
           <div className="grid gap-4">
             <div className="bg-white/10 backdrop-blur-lg p-4 rounded-xl border border-white/20">
               <h3 className="font-semibold text-lg">Gestión de Incidentes</h3>
@@ -82,7 +104,6 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Stats */}
           <div className="flex gap-6 pt-4">
             <div>
               <p className="text-3xl font-bold">99.9%</p>
@@ -105,7 +126,6 @@ const Login = () => {
       <div className="flex w-full lg:w-1/2 items-center justify-center px-6">
         <div className="w-full max-w-md bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 transition-all">
 
-          {/* Header */}
           <div className="mb-6 text-center">
             <h2 className="text-3xl font-bold text-gray-800 dark:text-white">
               Bienvenido
@@ -115,7 +135,6 @@ const Login = () => {
             </p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleLogin} className="space-y-5">
 
             {error && (
@@ -134,10 +153,15 @@ const Login = () => {
                 <input
                   type="text"
                   required
+                  autoFocus
+                  disabled={loading}
                   className="pl-10 w-full p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-violet-500 outline-none"
                   placeholder="Usuario"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    setError('');
+                  }}
                 />
               </div>
             </div>
@@ -153,10 +177,14 @@ const Login = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={loading}
                   className="pl-10 pr-10 w-full p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:ring-2 focus:ring-violet-500 outline-none"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError('');
+                  }}
                 />
 
                 <button
@@ -173,7 +201,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-violet-600 text-white p-3 rounded-xl font-bold hover:bg-violet-700 transition flex items-center justify-center gap-2 disabled:opacity-70"
+              className="w-full bg-violet-600 text-white p-3 rounded-xl font-bold hover:bg-violet-700 transition active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70"
             >
               {loading ? (
                 <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-5 h-5"></span>
@@ -184,7 +212,6 @@ const Login = () => {
 
           </form>
 
-          {/* Footer */}
           <p className="text-xs text-gray-400 text-center mt-6">
             © 2026 Bitácora App
           </p>
