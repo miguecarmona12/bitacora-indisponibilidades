@@ -348,7 +348,7 @@ const Configuracion = () => {
                         <input
                             type="text"
                             required
-                            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                           className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none !bg-white text-gray-900 focus:ring-2 focus:ring-blue-500"
                             value={editFormData.nombre}
                             onChange={(e) => setEditFormData({...editFormData, nombre: e.target.value})}
                         />
