@@ -37,7 +37,7 @@ echo "📥 Instalando dependencias backend..."
 pip install -r requirements.txt
 
 # Variable para local
-export DATABASE_URL="postgresql://admin:admin123@localhost:5432/bitacora"
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/bitacora"
 
 echo "🔥 Backend en http://localhost:8000"
 uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
