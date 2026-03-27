@@ -45,6 +45,13 @@ Listado de todos los incidentes registrados con su estado.
 
 ![Lista](docs/img/lista_incidentes.png)
 
+
+###  ⚙️ Gestion  de usuarios
+Sección encargada de administrar los usuarios del sistema, mostrando un listado de todos los incidentes asociados a cada usuario y su estado actual.
+
+![Lista](docs/img/gestion_de_usuarios.png)
+
+
 ---
 
 ## 🚀 Funcionalidades principales
