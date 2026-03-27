@@ -377,7 +377,7 @@ const Login = () => {
                   required
                   autoFocus
                   disabled={loading}
-                  placeholder="tu_usuario"
+                  placeholder="usuario"
                   className="lg-input"
                   value={username}
                   onChange={e => { setUsername(e.target.value); setError(''); }}
