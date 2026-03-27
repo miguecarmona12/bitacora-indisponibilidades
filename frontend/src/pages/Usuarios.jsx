@@ -3,72 +3,361 @@ import { bitacoraService, authService } from '../services/api';
 import {
   Users, UserPlus, Shield, User, Pencil, Trash2,
   Key, X, Check, AlertTriangle, Eye, EyeOff,
-  Search, Building2, Loader2
+  Search, Building2, Loader2, CheckCircle2,
+  Crown, Wrench, UserCheck, Activity, Hash
 } from 'lucide-react';
 
-/* ─────────────────────────────────────────────────────────
-   HELPERS & SUB-COMPONENTS
-───────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ESTILOS — mismo sistema de variables que Configuracion.jsx
+═══════════════════════════════════════════════════════════════════════════ */
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
 
+  :root {
+    --violet:      #7c3aed;
+    --violet-mid:  #8b5cf6;
+    --violet-soft: #f5f3ff;
+    --fuchsia:     #a21caf;
+    --fuchsia-soft:#fdf4ff;
+    --sky:         #0284c7;
+    --sky-soft:    #f0f9ff;
+    --emerald:     #059669;
+    --emerald-soft:#f0fdf4;
+    --amber:       #d97706;
+    --amber-soft:  #fffbeb;
+    --red:         #dc2626;
+    --red-soft:    #fef2f2;
+    --surface:     #ffffff;
+    --surface-2:   #fafafa;
+    --surface-3:   #f4f4f5;
+    --border:      #e4e4e7;
+    --border-2:    rgba(124,58,237,0.13);
+    --text-1:      #09090b;
+    --text-2:      #52525b;
+    --text-3:      #a1a1aa;
+    --shadow-sm:   0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md:   0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+    --shadow-lg:   0 20px 40px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
+    --radius-sm:   6px;
+    --radius-md:   10px;
+    --radius-lg:   14px;
+    --radius-xl:   18px;
+  }
+
+  .usr-root * { font-family: 'Geist', sans-serif; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  .usr-mono   { font-family: 'Geist Mono', monospace !important; }
+
+  /* ── Pulse dot ── */
+  @keyframes usr-pulse {
+    0%,100% { box-shadow: 0 0 0 0   rgba(124,58,237,.5); }
+    50%      { box-shadow: 0 0 0 5px rgba(124,58,237,0);  }
+  }
+  .usr-pulse-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--violet);
+    animation: usr-pulse 2.2s ease infinite;
+    flex-shrink: 0;
+  }
+
+  /* ── Card ── */
+  .usr-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ── Input ── */
+  .usr-input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 11px;
+    font-size: 13px;
+    color: var(--text-1);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+    width: 100%;
+    font-family: 'Geist', sans-serif;
+  }
+  .usr-input::placeholder { color: var(--text-3); }
+  .usr-input:focus {
+    border-color: var(--violet-mid);
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.12);
+  }
+  .usr-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Label ── */
+  .usr-label {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: .09em; text-transform: uppercase;
+    color: var(--text-3); margin-bottom: 6px;
+  }
+
+  /* ── Botón primario negro ── */
+  .usr-btn-primary {
+    background: var(--text-1);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-weight: 600; font-size: 13px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s, background 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 16px; width: 100%;
+    font-family: 'Geist', sans-serif;
+  }
+  .usr-btn-primary:hover  { opacity: 0.86; transform: translateY(-0.5px); }
+  .usr-btn-primary:active { transform: translateY(0); }
+  .usr-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── Botón ghost ── */
+  .usr-btn-ghost {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: var(--radius-md); color: var(--text-2);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: background 0.13s, border-color 0.13s;
+    padding: 8px 16px; font-family: 'Geist', sans-serif;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .usr-btn-ghost:hover { background: var(--surface-3); border-color: #d4d4d8; }
+
+  /* ── Divider ── */
+  .usr-divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+  /* ── Badge rol ── */
+  .usr-role-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 6px;
+    border: 1px solid; white-space: nowrap;
+  }
+
+  /* ── Avatar ── */
+  .usr-avatar {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; color: white; flex-shrink: 0;
+    letter-spacing: -.01em;
+  }
+
+  /* ── Tabla ── */
+  .usr-table { width: 100%; border-collapse: collapse; }
+  .usr-table th {
+    padding: 10px 16px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: .09em; text-transform: uppercase;
+    color: var(--text-3);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .usr-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; color: var(--text-1);
+    vertical-align: middle;
+  }
+  .usr-table tr:last-child td { border-bottom: none; }
+  .usr-table tbody tr { transition: background 0.1s ease; }
+  .usr-table tbody tr:hover { background: var(--surface-2); }
+  .usr-table tbody tr:hover .usr-action-btn { opacity: 1; }
+
+  /* ── Action buttons ── */
+  .usr-action-btn {
+    width: 28px; height: 28px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text-3);
+    transition: all .13s ease;
+    opacity: 0;
+  }
+
+  /* ── Search ── */
+  .usr-search-wrap { position: relative; }
+  .usr-search-wrap .usr-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+  .usr-search-input {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 7px 11px 7px 32px;
+    font-size: 13px; color: var(--text-1);
+    outline: none; width: 200px;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s, width 0.2s;
+    font-family: 'Geist', sans-serif;
+  }
+  .usr-search-input::placeholder { color: var(--text-3); }
+  .usr-search-input:focus {
+    background: var(--surface);
+    border-color: var(--violet-mid);
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.12);
+    width: 240px;
+  }
+
+  /* ── Counter badge ── */
+  .usr-counter {
+    min-width: 20px; height: 20px;
+    border-radius: 99px;
+    font-size: 10px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 6px;
+  }
+
+  /* ── Panel accent line ── */
+  .usr-panel-accent { height: 3px; border-radius: 99px; margin-bottom: 20px; }
+
+  /* ── KPI card ── */
+  .usr-kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 20px;
+    display: flex; flex-direction: column; gap: 2px;
+    min-width: 80px; text-align: center;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.15s;
+  }
+  .usr-kpi:hover { box-shadow: var(--shadow-md); }
+
+  /* ── Flash ── */
+  @keyframes usr-flash {
+    0%   { opacity: 0; transform: translateY(-4px) scale(.98); }
+    12%  { opacity: 1; transform: translateY(0) scale(1); }
+    78%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .usr-flash { animation: usr-flash 2.2s ease forwards; }
+
+  /* ── Row animation ── */
+  @keyframes usr-row-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .usr-row-anim { animation: usr-row-in 0.22s ease both; }
+
+  /* ── Modal ── */
+  @keyframes usr-modal-in {
+    from { opacity: 0; transform: translateY(16px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .usr-modal-enter { animation: usr-modal-in 0.22s cubic-bezier(.4,0,.2,1) forwards; }
+
+  /* ── Scrollbar ── */
+  .usr-scroll::-webkit-scrollbar       { width: 4px; }
+  .usr-scroll::-webkit-scrollbar-track { background: #ffffff; border-radius: 9px; }
+  .usr-scroll::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 9px; }
+  .usr-scroll::-webkit-scrollbar-thumb:hover { background: #d4d4d8; }
+
+  /* ── Password strength bar ── */
+  .pwd-bar-track { height: 3px; border-radius: 99px; background: var(--border); overflow: hidden; }
+  .pwd-bar-fill  { height: 100%; border-radius: 99px; transition: width 0.3s ease, background 0.3s ease; }
+
+  /* ── Empty state ── */
+  .usr-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 48px 24px; color: var(--text-3); text-align: center; gap: 8px;
+  }
+
+  /* ── Sticky form panel ── */
+  @media (min-width: 1024px) { .usr-sticky { position: sticky; top: 88px; } }
+
+  /* ── Filter pills ── */
+  .usr-filter-pill {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700;
+    border: 1px solid; cursor: pointer; transition: all .13s;
+    font-family: 'Geist', sans-serif;
+    text-transform: capitalize;
+  }
+`;
+
+/* ─── Rol metadata ─────────────────────────────────────────────────────── */
 const ROL_META = {
-  admin:   {
+  admin: {
     label: 'Admin',
-    gradient: 'from-fuchsia-500 to-purple-600',
-    bg: 'bg-fuchsia-50',
-    text: 'text-fuchsia-700',
-    border: 'border-fuchsia-200',
-    dot: 'bg-fuchsia-500',
+    gradient: 'linear-gradient(135deg, #a21caf, #7c3aed)',
+    badgeBg: '#fdf4ff', badgeColor: '#86198f', badgeBorder: '#f0abfc',
+    avatarGrad: 'linear-gradient(135deg, #a21caf, #7c3aed)',
+    Icon: Crown,
   },
   tecnico: {
     label: 'Técnico',
-    gradient: 'from-sky-400 to-blue-500',
-    bg: 'bg-sky-50',
-    text: 'text-sky-700',
-    border: 'border-sky-200',
-    dot: 'bg-sky-500',
+    gradient: 'linear-gradient(135deg, #0284c7, #6366f1)',
+    badgeBg: '#f0f9ff', badgeColor: '#0369a1', badgeBorder: '#bae6fd',
+    avatarGrad: 'linear-gradient(135deg, #0284c7, #6366f1)',
+    Icon: Wrench,
   },
   cliente: {
     label: 'Cliente',
-    gradient: 'from-emerald-400 to-teal-500',
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    border: 'border-emerald-200',
-    dot: 'bg-emerald-500',
+    gradient: 'linear-gradient(135deg, #059669, #0d9488)',
+    badgeBg: '#f0fdf4', badgeColor: '#047857', badgeBorder: '#a7f3d0',
+    avatarGrad: 'linear-gradient(135deg, #059669, #0d9488)',
+    Icon: UserCheck,
   },
 };
 
+/* ─── Password strength ─────────────────────────────────────────────────── */
+const getPwdStrength = (pwd) => {
+  if (!pwd) return { score: 0, label: '', color: '', pct: 0 };
+  let score = 0;
+  if (pwd.length >= 6)  score++;
+  if (pwd.length >= 10) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  if (score <= 1) return { score, label: 'Débil',    color: '#ef4444', pct: 20  };
+  if (score <= 2) return { score, label: 'Regular',  color: '#f97316', pct: 45  };
+  if (score <= 3) return { score, label: 'Buena',    color: '#eab308', pct: 65  };
+  if (score <= 4) return { score, label: 'Fuerte',   color: '#22c55e', pct: 85  };
+  return               { score, label: 'Excelente', color: '#059669', pct: 100 };
+};
+
+/* ─── Sub-components ────────────────────────────────────────────────────── */
 const RolBadge = ({ rol }) => {
   const m = ROL_META[rol] || ROL_META.cliente;
+  const Ic = m.Icon;
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full border ${m.bg} ${m.text} ${m.border}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
-      {m.label.toUpperCase()}
+    <span className="usr-role-badge" style={{ background: m.badgeBg, color: m.badgeColor, borderColor: m.badgeBorder }}>
+      <Ic size={9} /> {m.label}
     </span>
   );
 };
 
 const Avatar = ({ name, rol }) => {
   const m = ROL_META[rol] || ROL_META.cliente;
-  const initials = name ? name.slice(0, 2).toUpperCase() : '??';
   return (
-    <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${m.gradient} flex items-center justify-center text-white text-sm font-black shadow-md flex-shrink-0`}>
-      {initials}
+    <div className="usr-avatar" style={{ background: m.avatarGrad }}>
+      {name ? name.slice(0, 2).toUpperCase() : '??'}
     </div>
   );
 };
 
-/* ─── Field wrapper ───────────────────────────────────── */
-const Field = ({ label, children }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">{label}</label>
+const Field = ({ label, icon: Icon, children }) => (
+  <div>
+    <div className="usr-label">{Icon && <Icon size={10} />}{label}</div>
     {children}
   </div>
 );
 
-const inputCls = "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent focus:bg-white transition-all placeholder:text-gray-300";
+const PwdStrengthBar = ({ password }) => {
+  const s = getPwdStrength(password);
+  if (!password) return null;
+  return (
+    <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div className="pwd-bar-track">
+        <div className="pwd-bar-fill" style={{ width: `${s.pct}%`, background: s.color }} />
+      </div>
+      <span style={{ fontSize: 10, fontWeight: 700, color: s.color, letterSpacing: '.04em' }}>{s.label}</span>
+    </div>
+  );
+};
 
-/* ─── Modal base ──────────────────────────────────────── */
-const Modal = ({ open, onClose, title, icon: Icon, accentClass = 'from-violet-500 to-purple-600', children }) => {
+/* ─── Modal base ─────────────────────────────────────────────────────────── */
+const Modal = ({ open, onClose, title, Icon, accent, children }) => {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
@@ -78,123 +367,85 @@ const Modal = ({ open, onClose, title, icon: Icon, accentClass = 'from-violet-50
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden" style={{ animation: 'modalIn 0.2s ease-out' }}>
-        <div className={`bg-gradient-to-r ${accentClass} p-5 flex items-center justify-between`}>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-              <Icon className="w-5 h-5 text-white" />
+    <div
+      className="usr-root"
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(9,9,11,0.48)', backdropFilter: 'blur(8px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="usr-modal-enter" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-lg)', width: '100%', maxWidth: 460, overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {Icon && <Icon size={15} color="white" />}
             </div>
-            <h3 className="text-white font-black text-lg tracking-tight">{title}</h3>
+            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>{title}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
-            <X className="w-4 h-4 text-white" />
+          <button onClick={onClose}
+            style={{ width: 30, height: 30, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-3)', transition: 'all .13s' }}
+            onMouseOver={e => { e.currentTarget.style.background = 'var(--surface-3)'; e.currentTarget.style.color = 'var(--text-1)'; }}
+            onMouseOut={e => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.color = 'var(--text-3)'; }}
+          >
+            <X size={14} />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div style={{ padding: '22px 24px' }}>{children}</div>
       </div>
     </div>
   );
 };
 
-/* ─────────────────────────────────────────────────────────
-   MODAL: EDITAR USUARIO
-───────────────────────────────────────────────────────── */
+/* ─── Modal Editar ────────────────────────────────────────────────────────── */
 const ModalEditar = ({ open, onClose, usuario, empresas, onSaved }) => {
   const [form, setForm] = useState({ username: '', email: '', rol: 'cliente', empresa_id: '' });
   const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState(false);
 
   useEffect(() => {
-    if (usuario) {
-      setForm({
-        username: usuario.username || '',
-        email: usuario.email || '',
-        rol: usuario.rol || 'cliente',
-        empresa_id: usuario.empresa_id ?? '',
-      });
-    }
+    if (usuario) setForm({ username: usuario.username || '', email: usuario.email || '', rol: usuario.rol || 'cliente', empresa_id: usuario.empresa_id ?? '' });
   }, [usuario]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form };
-      payload.empresa_id = payload.empresa_id === '' ? null : parseInt(payload.empresa_id);
+      const payload = { ...form, empresa_id: form.empresa_id === '' ? null : parseInt(form.empresa_id) };
       await authService.updateUsuario(usuario.id, payload);
-      onSaved();
-      onClose();
-    } catch {
-      alert('Error al actualizar el usuario.');
-    } finally {
-      setSaving(false);
-    }
+      setFlash(true);
+      setTimeout(() => { setFlash(false); onSaved(); onClose(); }, 900);
+    } catch { alert('Error al actualizar el usuario.'); }
+    finally { setSaving(false); }
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Editar Usuario" icon={Pencil} accentClass="from-violet-500 to-purple-600">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Nombre de Usuario">
-          <input
-            className={inputCls}
-            required
-            value={form.username}
-            onChange={e => setForm({ ...form, username: e.target.value })}
-            placeholder="username"
-          />
+    <Modal open={open} onClose={onClose} title="Editar Usuario" Icon={Pencil} accent="linear-gradient(135deg, #7c3aed, #8b5cf6)">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Field label="Nombre de Usuario" icon={User}>
+          <input className="usr-input" required value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} placeholder="username" />
         </Field>
-
-        <Field label="Correo Electrónico">
-          <input
-            type="email"
-            className={inputCls}
-            required
-            value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })}
-            placeholder="correo@ejemplo.com"
-          />
+        <Field label="Correo Electrónico" icon={Activity}>
+          <input type="email" className="usr-input" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="correo@ejemplo.com" />
         </Field>
-
-        <Field label="Rol">
-          <select
-            className={inputCls}
-            value={form.rol}
-            onChange={e => setForm({ ...form, rol: e.target.value })}
-            required
-          >
+        <Field label="Rol" icon={Shield}>
+          <select className="usr-input" value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value })} required>
             <option value="admin">Administrador — Acceso Total</option>
             <option value="tecnico">Técnico — Bitácora y Dashboard</option>
             <option value="cliente">Cliente — Solo Dashboard</option>
           </select>
         </Field>
-
         {(form.rol === 'cliente' || form.rol === 'tecnico') && (
-          <Field label="Empresa Asignada">
-            <select
-              className={inputCls}
-              value={form.empresa_id}
-              onChange={e => setForm({ ...form, empresa_id: e.target.value })}
-            >
+          <Field label="Empresa Asignada" icon={Building2}>
+            <select className="usr-input" value={form.empresa_id} onChange={e => setForm({ ...form, empresa_id: e.target.value })}>
               <option value="">— Ninguna —</option>
-              {empresas.map(emp => (
-                <option key={emp.id} value={emp.id}>{emp.nombre}</option>
-              ))}
+              {empresas.map(emp => <option key={emp.id} value={emp.id}>{emp.nombre}</option>)}
             </select>
           </Field>
         )}
-
-        <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-50 transition-colors">
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-black shadow-md hover:shadow-lg hover:from-violet-600 hover:to-purple-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            {saving ? 'Guardando...' : 'Guardar Cambios'}
+        <div style={{ display: 'flex', gap: 10, paddingTop: 4, borderTop: '1px solid var(--border)', marginTop: 4 }}>
+          <button type="button" onClick={onClose} className="usr-btn-ghost" style={{ flex: 1 }}>Cancelar</button>
+          <button type="submit" disabled={saving} className="usr-btn-primary" style={{ flex: 1, background: flash ? '#059669' : 'var(--text-1)' }}>
+            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : flash ? <CheckCircle2 size={14} /> : <Check size={14} />}
+            {saving ? 'Guardando...' : flash ? '¡Guardado!' : 'Guardar Cambios'}
           </button>
         </div>
       </form>
@@ -202,18 +453,14 @@ const ModalEditar = ({ open, onClose, usuario, empresas, onSaved }) => {
   );
 };
 
-/* ─────────────────────────────────────────────────────────
-   MODAL: CAMBIAR CONTRASEÑA
-───────────────────────────────────────────────────────── */
+/* ─── Modal Contraseña ────────────────────────────────────────────────────── */
 const ModalPassword = ({ open, onClose, usuario, onSaved }) => {
   const [form, setForm] = useState({ password: '', confirm: '' });
   const [showPwd, setShowPwd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!open) { setForm({ password: '', confirm: '' }); setError(''); }
-  }, [open]);
+  useEffect(() => { if (!open) { setForm({ password: '', confirm: '' }); setError(''); } }, [open]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -222,65 +469,41 @@ const ModalPassword = ({ open, onClose, usuario, onSaved }) => {
     setSaving(true);
     try {
       await authService.updateUsuario(usuario.id, { password: form.password });
-      onSaved();
-      onClose();
-    } catch {
-      setError('Error al cambiar la contraseña.');
-    } finally {
-      setSaving(false);
-    }
+      onSaved(); onClose();
+    } catch { setError('Error al cambiar la contraseña.'); }
+    finally { setSaving(false); }
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Cambiar Contraseña" icon={Key} accentClass="from-amber-400 to-orange-500">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-gray-500">
-          Cambiando contraseña para <span className="font-bold text-gray-700">{usuario?.username}</span>
-        </p>
-
-        <Field label="Nueva Contraseña">
-          <div className="relative">
-            <input
-              type={showPwd ? 'text' : 'password'}
-              className={inputCls + ' pr-10'}
-              required
-              value={form.password}
-              onChange={e => { setForm({ ...form, password: e.target.value }); setError(''); }}
-              placeholder="••••••••"
-            />
-            <button type="button" onClick={() => setShowPwd(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-              {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+    <Modal open={open} onClose={onClose} title="Cambiar Contraseña" Icon={Key} accent="linear-gradient(135deg, #d97706, #f59e0b)">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-2)', padding: '8px 12px', background: 'var(--amber-soft)', borderRadius: 'var(--radius-md)', border: '1px solid #fde68a' }}>
+          Cambiando contraseña de <strong style={{ color: 'var(--text-1)' }}>{usuario?.username}</strong>
+        </div>
+        <Field label="Nueva Contraseña" icon={Key}>
+          <div style={{ position: 'relative' }}>
+            <input type={showPwd ? 'text' : 'password'} className="usr-input" required style={{ paddingRight: 36 }} value={form.password} onChange={e => { setForm({ ...form, password: e.target.value }); setError(''); }} placeholder="••••••••" />
+            <button type="button" onClick={() => setShowPwd(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex' }}>
+              {showPwd ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
           </div>
+          <PwdStrengthBar password={form.password} />
         </Field>
-
-        <Field label="Confirmar Contraseña">
-          <input
-            type={showPwd ? 'text' : 'password'}
-            className={inputCls}
-            required
-            value={form.confirm}
-            onChange={e => { setForm({ ...form, confirm: e.target.value }); setError(''); }}
-            placeholder="••••••••"
-          />
+        <Field label="Confirmar Contraseña" icon={Check}>
+          <input type={showPwd ? 'text' : 'password'} className="usr-input" required value={form.confirm} onChange={e => { setForm({ ...form, confirm: e.target.value }); setError(''); }} placeholder="••••••••" />
+          {form.confirm && form.password !== form.confirm && (
+            <p style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>Las contraseñas no coinciden</p>
+          )}
         </Field>
-
         {error && (
-          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {error}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--red)', background: 'var(--red-soft)', border: '1px solid #fecaca', borderRadius: 'var(--radius-md)', padding: '8px 12px' }}>
+            <AlertTriangle size={13} /> {error}
           </div>
         )}
-
-        <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-50 transition-colors">
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white text-sm font-black shadow-md hover:shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+        <div style={{ display: 'flex', gap: 10, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+          <button type="button" onClick={onClose} className="usr-btn-ghost" style={{ flex: 1 }}>Cancelar</button>
+          <button type="submit" disabled={saving} className="usr-btn-primary" style={{ flex: 1, background: '#d97706' }}>
+            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Key size={14} />}
             {saving ? 'Guardando...' : 'Actualizar'}
           </button>
         </div>
@@ -289,62 +512,40 @@ const ModalPassword = ({ open, onClose, usuario, onSaved }) => {
   );
 };
 
-/* ─────────────────────────────────────────────────────────
-   MODAL: ELIMINAR USUARIO
-───────────────────────────────────────────────────────── */
+/* ─── Modal Eliminar ─────────────────────────────────────────────────────── */
 const ModalEliminar = ({ open, onClose, usuario, onDeleted }) => {
   const [confirm, setConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
-
   useEffect(() => { if (!open) setConfirm(''); }, [open]);
 
   const handleDelete = async () => {
     setDeleting(true);
     try {
       await authService.deleteUsuario(usuario.id);
-      onDeleted();
-      onClose();
-    } catch {
-      alert('Error al eliminar el usuario.');
-    } finally {
-      setDeleting(false);
-    }
+      onDeleted(); onClose();
+    } catch { alert('Error al eliminar el usuario.'); }
+    finally { setDeleting(false); }
   };
 
-  const isConfirmed = confirm === usuario?.username;
-
   return (
-    <Modal open={open} onClose={onClose} title="Eliminar Usuario" icon={Trash2} accentClass="from-red-500 to-rose-600">
-      <div className="space-y-4">
-        <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+    <Modal open={open} onClose={onClose} title="Eliminar Usuario" Icon={Trash2} accent="linear-gradient(135deg, #dc2626, #e11d48)">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', gap: 10, padding: '12px 14px', background: 'var(--red-soft)', border: '1px solid #fecaca', borderRadius: 'var(--radius-md)' }}>
+          <AlertTriangle size={15} color="var(--red)" style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
-            <p className="text-sm font-bold text-red-700 mb-1">Esta acción no se puede deshacer</p>
-            <p className="text-xs text-red-500 leading-relaxed">
-              Eliminarás permanentemente la cuenta de <span className="font-black">{usuario?.username}</span> y todos sus datos asociados.
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', marginBottom: 3 }}>Esta acción no se puede deshacer</p>
+            <p style={{ fontSize: 12, color: '#991b1b', lineHeight: 1.5 }}>
+              Se eliminará permanentemente la cuenta de <strong>{usuario?.username}</strong>.
             </p>
           </div>
         </div>
-
-        <Field label={`Escribe "${usuario?.username}" para confirmar`}>
-          <input
-            className={inputCls}
-            value={confirm}
-            onChange={e => setConfirm(e.target.value)}
-            placeholder={usuario?.username}
-          />
+        <Field label={`Escribe "${usuario?.username}" para confirmar`} icon={Hash}>
+          <input className="usr-input" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={usuario?.username} />
         </Field>
-
-        <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-50 transition-colors">
-            Cancelar
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={!isConfirmed || deleting}
-            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white text-sm font-black shadow-md hover:shadow-lg transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-          >
-            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        <div style={{ display: 'flex', gap: 10, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+          <button type="button" onClick={onClose} className="usr-btn-ghost" style={{ flex: 1 }}>Cancelar</button>
+          <button onClick={handleDelete} disabled={confirm !== usuario?.username || deleting} className="usr-btn-primary" style={{ flex: 1, background: '#dc2626' }}>
+            {deleting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={14} />}
             {deleting ? 'Eliminando...' : 'Eliminar'}
           </button>
         </div>
@@ -353,24 +554,24 @@ const ModalEliminar = ({ open, onClose, usuario, onDeleted }) => {
   );
 };
 
-/* ─────────────────────────────────────────────────────────
-   MAIN COMPONENT
-───────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENTE PRINCIPAL
+═══════════════════════════════════════════════════════════════════════════ */
 const Usuarios = () => {
-  const [usuarios, setUsuarios] = useState([]);
-  const [empresas, setEmpresas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [usuarios,    setUsuarios]    = useState([]);
+  const [empresas,    setEmpresas]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState('');
+  const [filterRol,   setFilterRol]   = useState('todos');
 
-  const [modalEditar, setModalEditar] = useState({ open: false, usuario: null });
+  const [modalEditar,   setModalEditar]   = useState({ open: false, usuario: null });
   const [modalPassword, setModalPassword] = useState({ open: false, usuario: null });
   const [modalEliminar, setModalEliminar] = useState({ open: false, usuario: null });
 
-  const [formData, setFormData] = useState({
-    username: '', email: '', password: '', rol: 'cliente', empresa_id: ''
-  });
+  const [formData, setFormData] = useState({ username: '', email: '', password: '', rol: 'cliente', empresa_id: '' });
   const [showCreatePwd, setShowCreatePwd] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [flash, setFlash] = useState(false);
 
   /* ── Fetch ── */
   const fetchData = async () => {
@@ -382,11 +583,8 @@ const Usuarios = () => {
       ]);
       setUsuarios(dataUsers);
       setEmpresas(dataEmp);
-    } catch (error) {
-      console.error('Error al cargar datos', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error('Error al cargar datos', err); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -396,316 +594,283 @@ const Usuarios = () => {
     e.preventDefault();
     setCreating(true);
     try {
-      const p = { ...formData };
-      p.empresa_id = p.empresa_id === '' ? null : parseInt(p.empresa_id);
+      const p = { ...formData, empresa_id: formData.empresa_id === '' ? null : parseInt(formData.empresa_id) };
       await authService.createUsuario(p);
       setFormData({ username: '', email: '', password: '', rol: 'cliente', empresa_id: '' });
+      setFlash(true);
+      setTimeout(() => setFlash(false), 2400);
       fetchData();
-    } catch {
-      alert('Error al crear usuario. Revisa si el nombre ya existe.');
-    } finally {
-      setCreating(false);
-    }
+    } catch { alert('Error al crear usuario. Revisa si el nombre ya existe.'); }
+    finally { setCreating(false); }
   };
 
-  /* ── Helpers ── */
   const getEmpresaNombre = (id) => {
     if (!id) return null;
-    const e = empresas.find(em => em.id === id);
-    return e ? e.nombre : 'Desconocida';
+    return empresas.find(e => e.id === id)?.nombre || 'Desconocida';
   };
 
-  const filteredUsuarios = usuarios.filter(u =>
-    u.username?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.rol?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsuarios = usuarios.filter(u => {
+    const matchSearch = (
+      u.username?.toLowerCase().includes(search.toLowerCase()) ||
+      u.email?.toLowerCase().includes(search.toLowerCase())
+    );
+    const matchRol = filterRol === 'todos' || u.rol === filterRol;
+    return matchSearch && matchRol;
+  });
 
   const stats = {
-    total: usuarios.length,
-    admin: usuarios.filter(u => u.rol === 'admin').length,
+    total:   usuarios.length,
+    admin:   usuarios.filter(u => u.rol === 'admin').length,
     tecnico: usuarios.filter(u => u.rol === 'tecnico').length,
     cliente: usuarios.filter(u => u.rol === 'cliente').length,
   };
 
-  /* ─────────────────────────────────────────────────────
-     RENDER
-  ───────────────────────────────────────────────────── */
+  /* ── Render ── */
   return (
-    <>
-      <style>{`
-        @keyframes modalIn {
-          from { opacity: 0; transform: scale(0.95) translateY(8px); }
-          to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .row-anim { animation: fadeUp 0.25s ease both; }
-      `}</style>
+    <div className="usr-root" style={{ background: 'var(--surface)', minHeight: '100vh', paddingTop: 80, paddingBottom: 64, paddingLeft: 16, paddingRight: 16 }}>
+      <style>{STYLES}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
-      <div className="pt-24 px-4 max-w-7xl mx-auto mb-10 pb-10">
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
 
-        {/* ── Page Header ── */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-200">
-              <Users className="w-6 h-6 text-white" />
+        {/* ── Encabezado ── */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 32 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div className="usr-pulse-dot" />
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--violet)' }}>
+                Control de acceso
+              </span>
             </div>
-            <div>
-              <h1 className="text-2xl font-black text-gray-900 tracking-tight">Gestión de Usuarios</h1>
-              <p className="text-sm text-gray-400 font-medium">{stats.total} cuentas registradas</p>
-            </div>
+            <h1 style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--text-1)', lineHeight: 1, letterSpacing: '-.02em', margin: 0 }}>
+              Gestión de
+              <span style={{ marginLeft: 12, background: 'linear-gradient(135deg, #7c3aed, #a21caf, #be185d)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                Usuarios
+              </span>
+            </h1>
+            <p style={{ color: 'var(--text-3)', marginTop: 8, fontSize: 13 }}>
+              Administra cuentas, roles y permisos del sistema
+            </p>
           </div>
 
-          {/* Stats pills */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* KPIs */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {[
-              { label: 'Admins',   count: stats.admin,   color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' },
-              { label: 'Técnicos', count: stats.tecnico, color: 'bg-sky-50 text-sky-700 border-sky-200' },
-              { label: 'Clientes', count: stats.cliente, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-            ].map(s => (
-              <span key={s.label} className={`text-xs font-bold px-3 py-1.5 rounded-full border ${s.color}`}>
-                {s.count} {s.label}
-              </span>
+              { label: 'Total',    count: stats.total,   accent: 'linear-gradient(135deg, #7c3aed, #a21caf)' },
+              { label: 'Admins',   count: stats.admin,   accent: ROL_META.admin.gradient },
+              { label: 'Técnicos', count: stats.tecnico, accent: ROL_META.tecnico.gradient },
+              { label: 'Clientes', count: stats.cliente, accent: ROL_META.cliente.gradient },
+            ].map(k => (
+              <div key={k.label} className="usr-kpi">
+                <p style={{ fontSize: 22, fontWeight: 800, background: k.accent, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>{k.count}</p>
+                <p style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', margin: 0 }}>{k.label}</p>
+              </div>
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ── Layout grid ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24, alignItems: 'start' }}>
 
-          {/* ─────────────────────────────────────────
-              FORMULARIO CREAR USUARIO
-          ────────────────────────────────────────── */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden sticky top-24">
-              <div className="bg-gradient-to-r from-violet-500 to-purple-600 p-5 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
-                  <UserPlus className="w-4 h-4 text-white" />
-                </div>
-                <h2 className="text-white font-black text-base tracking-tight">Nuevo Usuario</h2>
+          {/* ══ Panel CREAR USUARIO ══ */}
+          <div className="usr-card usr-sticky" style={{ padding: 20 }}>
+            <div className="usr-panel-accent" style={{ background: 'linear-gradient(90deg, #7c3aed, #a21caf)' }} />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg, #7c3aed, #a21caf)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <UserPlus size={14} color="white" />
               </div>
-
-              <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                <Field label="Nombre de Usuario">
-                  <input
-                    type="text"
-                    required
-                    className={inputCls}
-                    placeholder="username"
-                    value={formData.username}
-                    onChange={e => setFormData({ ...formData, username: e.target.value })}
-                  />
-                </Field>
-
-                <Field label="Correo Electrónico">
-                  <input
-                    type="email"
-                    required
-                    className={inputCls}
-                    placeholder="correo@ejemplo.com"
-                    value={formData.email}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  />
-                </Field>
-
-                <Field label="Contraseña">
-                  <div className="relative">
-                    <input
-                      type={showCreatePwd ? 'text' : 'password'}
-                      required
-                      className={inputCls + ' pr-10'}
-                      placeholder="••••••••"
-                      value={formData.password}
-                      onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    />
-                    <button type="button" onClick={() => setShowCreatePwd(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      {showCreatePwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </Field>
-
-                <Field label="Rol">
-                  <select
-                    className={inputCls}
-                    value={formData.rol}
-                    onChange={e => setFormData({ ...formData, rol: e.target.value })}
-                    required
-                  >
-                    <option value="admin">Administrador — Acceso Total</option>
-                    <option value="tecnico">Técnico — Bitácora y Dashboard</option>
-                    <option value="cliente">Cliente — Solo Dashboard</option>
-                  </select>
-                </Field>
-
-                {(formData.rol === 'cliente' || formData.rol === 'tecnico') && (
-                  <div className="bg-orange-50 border border-orange-100 rounded-2xl p-3.5 space-y-2">
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-orange-700 uppercase tracking-widest">
-                      <Building2 className="w-3.5 h-3.5" /> Empresa
-                    </label>
-                    <select
-                      className="w-full px-3 py-2 bg-white border border-orange-200 rounded-xl text-sm text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-orange-300 transition-all"
-                      value={formData.empresa_id}
-                      onChange={e => setFormData({ ...formData, empresa_id: e.target.value })}
-                    >
-                      <option value="">— Ninguna —</option>
-                      {empresas.map(emp => (
-                        <option key={emp.id} value={emp.id}>{emp.nombre}</option>
-                      ))}
-                    </select>
-                    <p className="text-[10px] text-orange-500 leading-tight">
-                      El cliente solo verá los incidentes de esta empresa en su dashboard.
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-black shadow-lg shadow-violet-200 hover:shadow-xl hover:from-violet-600 hover:to-purple-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
-                >
-                  {creating
-                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Creando...</>
-                    : <><UserPlus className="w-4 h-4" /> Crear Usuario</>}
-                </button>
-              </form>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', margin: 0 }}>Nuevo Usuario</p>
+                <p style={{ fontSize: 10, color: 'var(--text-3)', margin: 0 }}>Crear cuenta de acceso</p>
+              </div>
             </div>
+
+            <div className="usr-divider" />
+
+            {flash && (
+              <div className="usr-flash" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 600, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d' }}>
+                <CheckCircle2 size={13} /> Usuario creado exitosamente
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <Field label="Nombre de Usuario" icon={User}>
+                <input className="usr-input" required placeholder="username" value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} />
+              </Field>
+
+              <Field label="Correo Electrónico" icon={Activity}>
+                <input type="email" className="usr-input" required placeholder="correo@ejemplo.com" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+              </Field>
+
+              <Field label="Contraseña" icon={Key}>
+                <div style={{ position: 'relative' }}>
+                  <input type={showCreatePwd ? 'text' : 'password'} className="usr-input" required style={{ paddingRight: 36 }} placeholder="••••••••" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
+                  <button type="button" onClick={() => setShowCreatePwd(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex' }}>
+                    {showCreatePwd ? <EyeOff size={13} /> : <Eye size={13} />}
+                  </button>
+                </div>
+                <PwdStrengthBar password={formData.password} />
+              </Field>
+
+              <Field label="Rol" icon={Shield}>
+                <select className="usr-input" value={formData.rol} onChange={e => setFormData({ ...formData, rol: e.target.value })} required>
+                  <option value="admin">Administrador — Acceso Total</option>
+                  <option value="tecnico">Técnico — Bitácora y Dashboard</option>
+                  <option value="cliente">Cliente — Solo Dashboard</option>
+                </select>
+              </Field>
+
+              {(formData.rol === 'cliente' || formData.rol === 'tecnico') && (
+                <Field label="Empresa Asignada" icon={Building2}>
+                  <select className="usr-input" value={formData.empresa_id} onChange={e => setFormData({ ...formData, empresa_id: e.target.value })}>
+                    <option value="">— Ninguna (Global) —</option>
+                    {empresas.map(emp => <option key={emp.id} value={emp.id}>{emp.nombre}</option>)}
+                  </select>
+                  <p style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 4 }}>Solo verá incidentes de esta empresa.</p>
+                </Field>
+              )}
+
+              <button type="submit" disabled={creating} className="usr-btn-primary" style={{ marginTop: 4 }}>
+                {creating
+                  ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Creando...</>
+                  : <><UserPlus size={14} /> Crear Usuario</>}
+              </button>
+            </form>
           </div>
 
-          {/* ─────────────────────────────────────────
-              TABLA DE USUARIOS
-          ────────────────────────────────────────── */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* ══ Panel TABLA USUARIOS ══ */}
+          <div className="usr-card" style={{ overflow: 'hidden' }}>
+            {/* Accent top */}
+            <div style={{ height: 3, background: 'linear-gradient(90deg, #7c3aed, #a21caf, #be185d)' }} />
 
-              {/* Toolbar */}
-              <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-                <h2 className="text-base font-black text-gray-900 tracking-tight">Usuarios Registrados</h2>
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Buscar usuarios..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all placeholder:text-gray-300"
-                  />
-                </div>
+            {/* Toolbar */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', margin: 0 }}>Usuarios Registrados</p>
+                <span className="usr-counter" style={{ background: '#f5f3ff', color: '#6d28d9' }}>{filteredUsuarios.length}</span>
               </div>
 
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-gray-50/80 border-b border-gray-100">
-                      <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Usuario</th>
-                      <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Rol</th>
-                      <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest hidden sm:table-cell">Empresa</th>
-                      <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {loading && filteredUsuarios.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" className="py-16 text-center">
-                          <div className="flex flex-col items-center gap-3 text-gray-300">
-                            <Loader2 className="w-8 h-8 animate-spin" />
-                            <span className="text-sm font-medium">Cargando usuarios...</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : filteredUsuarios.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" className="py-16 text-center">
-                          <div className="flex flex-col items-center gap-2 text-gray-300">
-                            <Users className="w-10 h-10" />
-                            <span className="text-sm font-medium">No se encontraron usuarios</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredUsuarios.map((usr, i) => (
-                        <tr
-                          key={usr.id}
-                          className="row-anim hover:bg-gray-50/60 transition-colors"
-                          style={{ animationDelay: `${i * 40}ms` }}
-                        >
-                          {/* Usuario */}
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-3">
-                              <Avatar name={usr.username} rol={usr.rol} />
-                              <div>
-                                <div className="text-sm font-bold text-gray-800">{usr.username}</div>
-                                <div className="text-xs text-gray-400">{usr.email}</div>
-                              </div>
-                            </div>
-                          </td>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Filter pills */}
+                {['todos', 'admin', 'tecnico', 'cliente'].map(r => (
+                  <button
+                    key={r}
+                    className="usr-filter-pill"
+                    onClick={() => setFilterRol(r)}
+                    style={{
+                      background: filterRol === r ? 'var(--text-1)' : 'var(--surface)',
+                      color: filterRol === r ? 'white' : 'var(--text-3)',
+                      borderColor: filterRol === r ? 'var(--text-1)' : 'var(--border)',
+                    }}
+                  >
+                    {r === 'todos' ? 'Todos' : ROL_META[r]?.label}
+                  </button>
+                ))}
 
-                          {/* Rol */}
-                          <td className="px-5 py-3.5">
-                            <RolBadge rol={usr.rol} />
-                          </td>
-
-                          {/* Empresa */}
-                          <td className="px-5 py-3.5 hidden sm:table-cell">
-                            {getEmpresaNombre(usr.empresa_id) ? (
-                              <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
-                                <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                                {getEmpresaNombre(usr.empresa_id)}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-300 font-medium">—</span>
-                            )}
-                          </td>
-
-                          {/* Acciones */}
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => setModalEditar({ open: true, usuario: usr })}
-                                title="Editar usuario"
-                                className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-all"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setModalPassword({ open: true, usuario: usr })}
-                                title="Cambiar contraseña"
-                                className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
-                              >
-                                <Key className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setModalEliminar({ open: true, usuario: usr })}
-                                title="Eliminar usuario"
-                                className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Footer */}
-              {filteredUsuarios.length > 0 && (
-                <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/40 flex items-center justify-between">
-                  <span className="text-xs text-gray-400 font-medium">
-                    {filteredUsuarios.length} de {usuarios.length} usuarios
-                  </span>
-                  {search && (
-                    <button onClick={() => setSearch('')} className="text-xs text-violet-600 font-bold hover:underline">
-                      Limpiar filtro
-                    </button>
-                  )}
+                {/* Search */}
+                <div className="usr-search-wrap">
+                  <Search size={13} className="usr-search-icon" />
+                  <input type="text" className="usr-search-input" placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
-              )}
+              </div>
             </div>
+
+            {/* Table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table className="usr-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Empresa</th>
+                    <th style={{ textAlign: 'right' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan="4">
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', gap: 10, color: 'var(--text-3)' }}>
+                          <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
+                          <span style={{ fontSize: 12 }}>Cargando usuarios...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : filteredUsuarios.length === 0 ? (
+                    <tr>
+                      <td colSpan="4">
+                        <div className="usr-empty">
+                          <Users size={28} />
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>No se encontraron usuarios</span>
+                          {(search || filterRol !== 'todos') && (
+                            <button onClick={() => { setSearch(''); setFilterRol('todos'); }} style={{ fontSize: 12, color: 'var(--violet)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}>
+                              Limpiar filtros
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsuarios.map((usr, i) => (
+                      <tr key={usr.id} className="usr-row-anim" style={{ animationDelay: `${i * 35}ms` }}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Avatar name={usr.username} rol={usr.rol} />
+                            <div>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{usr.username}</p>
+                              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: 0, fontFamily: 'Geist Mono, monospace' }}>{usr.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td><RolBadge rol={usr.rol} /></td>
+                        <td>
+                          {getEmpresaNombre(usr.empresa_id)
+                            ? <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500, color: 'var(--text-2)' }}>
+                                <Building2 size={11} color="var(--text-3)" />{getEmpresaNombre(usr.empresa_id)}
+                              </span>
+                            : <span style={{ fontSize: 12, color: 'var(--text-3)', fontStyle: 'italic' }}>—</span>
+                          }
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                            <button className="usr-action-btn" title="Editar" onClick={() => setModalEditar({ open: true, usuario: usr })}
+                              onMouseOver={e => { e.currentTarget.style.color = 'var(--violet)'; e.currentTarget.style.background = 'var(--violet-soft)'; e.currentTarget.style.borderColor = '#ddd6fe'; }}
+                              onMouseOut={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
+                              <Pencil size={12} />
+                            </button>
+                            <button className="usr-action-btn" title="Contraseña" onClick={() => setModalPassword({ open: true, usuario: usr })}
+                              onMouseOver={e => { e.currentTarget.style.color = 'var(--amber)'; e.currentTarget.style.background = 'var(--amber-soft)'; e.currentTarget.style.borderColor = '#fde68a'; }}
+                              onMouseOut={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
+                              <Key size={12} />
+                            </button>
+                            <button className="usr-action-btn" title="Eliminar" onClick={() => setModalEliminar({ open: true, usuario: usr })}
+                              onMouseOver={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.background = 'var(--red-soft)'; e.currentTarget.style.borderColor = '#fecaca'; }}
+                              onMouseOut={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.borderColor = 'var(--border)'; }}>
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            {!loading && filteredUsuarios.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'Geist Mono, monospace' }}>
+                  {filteredUsuarios.length} / {usuarios.length} usuarios
+                </span>
+                {(search || filterRol !== 'todos') && (
+                  <button onClick={() => { setSearch(''); setFilterRol('todos'); }} style={{ fontSize: 11, color: 'var(--violet)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer' }}>
+                    Limpiar filtros
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
         </div>
@@ -731,7 +896,7 @@ const Usuarios = () => {
         usuario={modalEliminar.usuario}
         onDeleted={fetchData}
       />
-    </>
+    </div>
   );
 };
 
