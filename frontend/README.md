@@ -14,3 +14,34 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+
+FLUJO EN EQUIPO (PASO A PASO)
+🧑‍💻 CUANDO TÚ SUBES CAMBIOS (feature/miguel)
+✅ Tú haces:
+git add .
+git commit -m "feat: lo que hiciste"
+git push
+🧑‍💻 TU COMPAÑERO (en feature/norbey) debe hacer:
+1. Traer cambios del remoto
+git fetch origin
+2. Pararse en su rama
+git checkout feature/norbey
+3. Integrar tus cambios
+✔ Opción recomendada (simple):
+git merge origin/feature/miguel
+✔ Opción pro (historial limpio):
+git rebase origin/feature/miguel
+4. Subir su rama actualizada
+git push
+🔁 AHORA AL REVÉS
+🧑‍💻 CUANDO ÉL SUBE CAMBIOS (feature/norbey)
+✅ Él hace:
+git add .
+git commit -m "feat: lo que hizo"
+git push
+🧑‍💻 TÚ debes hacer:
+git fetch origin
+git checkout feature/miguel
+git merge origin/feature/norbey
+git push
