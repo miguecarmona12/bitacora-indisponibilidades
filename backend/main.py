@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from database import engine, Base, get_db, SessionLocal  # 👈 IMPORTANTE
+from database import engine, Base, get_db, SessionLocal  
 import models
 import schemas
 import auth
@@ -39,7 +39,7 @@ except Exception:
     pass
 
 
-# ✅ FUNCIÓN CORREGIDA
+
 def create_default_admin():
     db: Session = SessionLocal()
     try:
@@ -59,9 +59,9 @@ def create_default_admin():
 
             db.add(nuevo_admin)
             db.commit()
-            print("✅ Admin creado correctamente")
+            print(" Admin creado correctamente")
         else:
-            print("ℹ️ Admin ya existe")
+            print(" Admin ya existe")
 
     except Exception as e:
         print("❌ Error creando admin:", e)
@@ -73,7 +73,7 @@ def create_default_admin():
 app = FastAPI(title="Bitácora de Disponibilidad API")
 
 
-# ✅ EVENTO STARTUP (CLAVE)
+# EVENTO STARTUP 
 @app.on_event("startup")
 def startup_event():
     create_default_admin()
