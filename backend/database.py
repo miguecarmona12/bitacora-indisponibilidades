@@ -43,10 +43,10 @@ def test_db_connection():
         with engine.connect() as conn:
             result = conn.execute(text("SELECT 1"))
             result.fetchone()
-            logger.info("✅ Conexión a base de datos exitosa")
+            logger.info(" Conexión a base de datos exitosa")
             return True
     except Exception as e:
-        logger.error(f"❌ Error de conexión: {e}")
+        logger.error(f" Error de conexión: {e}")
         return False
 
 def init_db():
@@ -85,7 +85,7 @@ def init_db():
                 logger.info(f"Reintentando en 5 segundos...")
                 time.sleep(5)
             else:
-                logger.error("❌ No se pudo conectar a la base de datos")
+                logger.error(" No se pudo conectar a la base de datos")
                 raise e
     
     return False
