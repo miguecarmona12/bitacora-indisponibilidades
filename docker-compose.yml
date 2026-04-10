@@ -41,16 +41,12 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        VITE_API_URL: http://localhost:8000
     container_name: react_frontend
     restart: always
     depends_on:
       - backend
     ports:
       - "5173:5173"
-    environment:
-      VITE_API_URL: http://localhost:8000
     networks:
       - bitacora_network
 
