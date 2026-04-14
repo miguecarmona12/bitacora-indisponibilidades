@@ -9,7 +9,6 @@ const Navbar = () => {
   const navigate = useNavigate();
   const user = authService.getCurrentUser();
   
-  // Si no hay token en el navbar no renderizamos menús (estamos en login o fuera)
   if (!user.token && location.pathname === '/login') return null;
 
   const handleLogout = () => {
@@ -20,7 +19,6 @@ const Navbar = () => {
   const navItems = [
     { path: '/', name: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin', 'tecnico', 'cliente'] },
     { path: '/bitacora', name: 'Bitácora', icon: <Activity size={20} />, roles: ['admin', 'tecnico'] },
-    //{ path: '/eventos', name: 'Eventos', icon: <DamIcon size={20} />, roles: ['admin', 'tecnico'] },
     { path: '/configuracion', name: 'Catálogos', icon: <Settings size={20} />, roles: ['admin'] },
     { path: '/usuarios', name: 'Usuarios', icon: <Users size={20} />, roles: ['admin'] },
   ];
@@ -36,7 +34,8 @@ const Navbar = () => {
               <img src="/logo.png" alt="UX Logo" className="h-9 w-auto mr-3" />
               <span className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-violet-600 to-fuchsia-500">Bitácora GDO</span>
             </div>
-            <div className="hidden sm:ml-8 sm:flex sm:space-x-8">
+            {/* CAMBIO: sm:flex -> lg:flex (Oculto en tablets) */}
+            <div className="hidden lg:ml-8 lg:flex lg:space-x-8">
               {visibleItems.map((item) => (
                 <Link
                   key={item.path}
@@ -54,7 +53,8 @@ const Navbar = () => {
             </div>
           </div>
           
-          <div className="hidden sm:flex items-center">
+          {/* CAMBIO: sm:flex -> lg:flex (Oculto en tablets) */}
+          <div className="hidden lg:flex items-center">
              <div className="flex flex-col items-end mr-4 border-r border-gray-100 pr-4">
                 <span className="text-sm font-semibold text-gray-800">{user.username}</span>
                 <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wide">
@@ -66,8 +66,9 @@ const Navbar = () => {
              </button>
           </div>
 
-          {/* Botón menú tipo hamburguesa (celulares) */}
-          <div className="flex items-center sm:hidden">
+          {/* Botón menú tipo hamburguesa */}
+          {/* CAMBIO: sm:hidden -> lg:hidden (Visible en tablets) */}
+          <div className="flex items-center lg:hidden">
              <button 
                 onClick={() => setIsOpen(!isOpen)} 
                 className="text-gray-500 hover:text-fuchsia-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-fuchsia-500 p-2 rounded-md transition-colors"
@@ -80,9 +81,10 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Panel Móvil Desplegable */}
+      {/* Panel Móvil/Tablet Desplegable */}
+      {/* CAMBIO: sm:hidden -> lg:hidden */}
       {isOpen && (
-        <div className="sm:hidden bg-white border-b border-gray-200">
+        <div className="lg:hidden bg-white border-b border-gray-200 shadow-lg">
           <div className="pt-2 pb-3 space-y-1">
             {visibleItems.map((item) => (
               <Link
