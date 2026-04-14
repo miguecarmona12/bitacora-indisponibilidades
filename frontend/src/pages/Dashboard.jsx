@@ -705,21 +705,29 @@ const Dashboard = () => {
             </div>
 
             {/* ── Charts Grid ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
+            <div className="charts-grid">
 
-              {/* Apps */}
+              {/* Card 1: Apps */}
               <div className="d-chart-card d-fadeup" style={{ animationDelay: '140ms' }}>
                 <SectionTitle icon={BarChart3} title="Disponibilidad · Apps" iconColor="var(--violet)" />
                 <StatusLegend />
                 {chartDataApps.length === 0 ? <EmptyChart /> : (
-                  <div style={{ width: '100%', height: 220 }}>
+                  <div style={{ width: '100%', height: 250 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartDataApps} margin={{ top: 4, right: 4, left: -20, bottom: 28 }} barSize={24}>
+                      <BarChart data={chartDataApps} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                        <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ ...axisStyle }} dy={10} angle={-18} textAnchor="end" />
+                        <XAxis 
+                          dataKey="nombre" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ ...axisStyle, fontSize: 10 }} 
+                          angle={-30} 
+                          textAnchor="end" 
+                          interval={0} // Asegura que se vean todos los nombres
+                        />
                         <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)', radius: 6 }} />
-                        <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]}>
+                        <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={20}>
                           {chartDataApps.map((e, i) => <Cell key={i} fill={getDispColor(e.disponibilidad)} />)}
                         </Bar>
                       </BarChart>
@@ -728,19 +736,19 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* Categorías */}
+              {/* Card 2: Categorías (Igual que la anterior) */}
               <div className="d-chart-card d-fadeup" style={{ animationDelay: '180ms' }}>
                 <SectionTitle icon={BarChart3} title="Disponibilidad · Categorías" iconColor="#be185d" />
                 <StatusLegend />
                 {chartDataCats.length === 0 ? <EmptyChart /> : (
-                  <div style={{ width: '100%', height: 220 }}>
+                  <div style={{ width: '100%', height: 250 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartDataCats} margin={{ top: 4, right: 4, left: -20, bottom: 28 }} barSize={24}>
+                      <BarChart data={chartDataCats} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                        <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ ...axisStyle }} dy={10} angle={-18} textAnchor="end" />
+                        <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
                         <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)', radius: 6 }} />
-                        <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]}>
+                        <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={20}>
                           {chartDataCats.map((e, i) => <Cell key={i} fill={getDispColor(e.disponibilidad)} />)}
                         </Bar>
                       </BarChart>
@@ -749,18 +757,27 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* Pie */}
+              {/* Card 3: Pie Chart */}
               <div className="d-chart-card d-fadeup" style={{ animationDelay: '220ms' }}>
                 <SectionTitle icon={Activity} title="Impacto por Producto" iconColor="var(--fuchsia)" />
                 {chartDataProds.length === 0 ? <EmptyChart green /> : (
-                  <div style={{ width: '100%', height: 254 }}>
+                  <div style={{ width: '100%', height: 250 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={chartDataProds} cx="50%" cy="42%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="inactividad" nameKey="nombre">
+                        <Pie 
+                          data={chartDataProds} 
+                          cx="50%" 
+                          cy="50%" // Centrado mejorado
+                          innerRadius="50%" 
+                          outerRadius="80%" 
+                          paddingAngle={4} 
+                          dataKey="inactividad" 
+                          nameKey="nombre"
+                        >
                           {chartDataProds.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="transparent" />)}
                         </Pie>
                         <Tooltip content={<CustomPieTooltip />} />
-                        <Legend verticalAlign="bottom" height={32} iconType="circle" />
+                        <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
