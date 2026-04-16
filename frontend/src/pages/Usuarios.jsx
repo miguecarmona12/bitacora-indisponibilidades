@@ -83,9 +83,9 @@ const STYLES = `
 
 /* ─── Rol metadata ─────────────────────────────────────────────────────── */
 const ROL_META = {
-  admin: { label: 'Admin', badgeBg: '#fdf4ff', badgeColor: '#86198f', badgeBorder: '#f0abfc', avatarGrad: 'linear-gradient(135deg, #a21caf, #7c3aed)', Icon: Crown },
-  tecnico: { label: 'Técnico', badgeBg: '#f0f9ff', badgeColor: '#0369a1', badgeBorder: '#bae6fd', avatarGrad: 'linear-gradient(135deg, #0284c7, #6366f1)', Icon: Wrench },
-  cliente: { label: 'Cliente', badgeBg: '#f0fdf4', badgeColor: '#047857', badgeBorder: '#a7f3d0', avatarGrad: 'linear-gradient(135deg, #059669, #0d9488)', Icon: UserCheck },
+  admin:   { label: 'Admin',    badgeBg: '#fdf4ff', badgeColor: '#86198f', badgeBorder: '#f0abfc', avatarGrad: 'linear-gradient(135deg, #a21caf, #7c3aed)', Icon: Crown },
+  tecnico: { label: 'Técnico',  badgeBg: '#f0f9ff', badgeColor: '#0369a1', badgeBorder: '#bae6fd', avatarGrad: 'linear-gradient(135deg, #0284c7, #6366f1)', Icon: Wrench },
+  cliente: { label: 'Cliente',  badgeBg: '#f0fdf4', badgeColor: '#047857', badgeBorder: '#a7f3d0', avatarGrad: 'linear-gradient(135deg, #059669, #0d9488)', Icon: UserCheck },
 };
 
 /* ─── Sub-components ────────────────────────────────────────────────────── */
@@ -139,11 +139,14 @@ const getPwdStrength = (pwd) => {
   return { pct: (score + 1) * 25, label: labels[score], color: colors[score] };
 };
 
-/* ─── Modales ─────────────────────────────────────────────────────────── */
+/* ─── Modal base ──────────────────────────────────────────────────────── */
 const Modal = ({ open, onClose, title, Icon, accent, children }) => {
   if (!open) return null;
   return (
-    <div className="usr-root fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div
+      className="usr-root fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
       <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-3">
@@ -161,6 +164,231 @@ const Modal = ({ open, onClose, title, Icon, accent, children }) => {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   MODAL EDITAR USUARIO
+═══════════════════════════════════════════════════════════════════════════ */
+const ModalEditar = ({ open, usuario, empresas, onClose, onSaved }) => {
+  const [form, setForm] = useState({ username: '', email: '', rol: 'cliente', empresa_id: '' });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (usuario) {
+      setForm({
+        username:   usuario.username   || '',
+        email:      usuario.email      || '',
+        rol:        usuario.rol        || 'cliente',
+        empresa_id: usuario.empresa_id ? String(usuario.empresa_id) : '',
+      });
+    }
+  }, [usuario]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await authService.updateUsuario(usuario.id, {
+        ...form,
+        empresa_id: form.empresa_id || null,
+      });
+      onSaved();
+      onClose();
+    } catch {
+      alert('Error al actualizar el usuario.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Editar Usuario" Icon={Pencil} accent="#7c3aed">
+      <form onSubmit={handleSave} className="space-y-4">
+        <Field label="Username" icon={User}>
+          <input
+            className="usr-input"
+            required
+            value={form.username}
+            onChange={e => setForm({ ...form, username: e.target.value })}
+          />
+        </Field>
+        <Field label="Email" icon={Activity}>
+          <input
+            type="email"
+            className="usr-input"
+            required
+            value={form.email}
+            onChange={e => setForm({ ...form, email: e.target.value })}
+          />
+        </Field>
+        <Field label="Rol" icon={Shield}>
+          <select
+            className="usr-input"
+            value={form.rol}
+            onChange={e => setForm({ ...form, rol: e.target.value })}
+          >
+            <option value="admin">Admin</option>
+            <option value="tecnico">Técnico</option>
+            <option value="cliente">Cliente</option>
+          </select>
+        </Field>
+        {form.rol !== 'admin' && (
+          <Field label="Empresa" icon={Building2}>
+            <select
+              className="usr-input"
+              value={form.empresa_id}
+              onChange={e => setForm({ ...form, empresa_id: e.target.value })}
+            >
+              <option value="">Ninguna (Global)</option>
+              {empresas.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+        <div className="flex gap-2 pt-2">
+          <button type="button" onClick={onClose} className="usr-btn-ghost flex-1">Cancelar</button>
+          <button type="submit" disabled={saving} className="usr-btn-primary flex-1">
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL CAMBIAR CONTRASEÑA
+═══════════════════════════════════════════════════════════════════════════ */
+const ModalPassword = ({ open, usuario, onClose, onSaved }) => {
+  const [pwd, setPwd]         = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+
+  useEffect(() => {
+    if (open) { setPwd(''); setConfirm(''); setError(''); }
+  }, [open]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (pwd !== confirm) { setError('Las contraseñas no coinciden.'); return; }
+    if (pwd.length < 4)  { setError('La contraseña debe tener al menos 4 caracteres.'); return; }
+    setSaving(true);
+    try {
+      await authService.changePassword(usuario.id, { password: pwd });
+      onSaved();
+      onClose();
+    } catch {
+      setError('Error al cambiar la contraseña.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Cambiar Contraseña" Icon={Key} accent="#0284c7">
+      {usuario && (
+        <div className="flex items-center gap-3 mb-5 p-3 rounded-xl bg-sky-50 border border-sky-100">
+          <Avatar name={usuario.username} rol={usuario.rol} />
+          <div>
+            <p className="font-bold text-gray-900 text-sm">{usuario.username}</p>
+            <p className="text-[11px] text-gray-400">{usuario.email}</p>
+          </div>
+        </div>
+      )}
+      <form onSubmit={handleSave} className="space-y-4">
+        <Field label="Nueva Contraseña" icon={Key}>
+          <div className="relative">
+            <input
+              type={showPwd ? 'text' : 'password'}
+              className="usr-input pr-10"
+              required
+              value={pwd}
+              onChange={e => { setPwd(e.target.value); setError(''); }}
+            />
+            <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-2.5 text-gray-400">
+              {showPwd ? <EyeOff size={14}/> : <Eye size={14}/>}
+            </button>
+          </div>
+          <PwdStrengthBar password={pwd} />
+        </Field>
+        <Field label="Confirmar Contraseña" icon={Key}>
+          <input
+            type={showPwd ? 'text' : 'password'}
+            className="usr-input"
+            required
+            value={confirm}
+            onChange={e => { setConfirm(e.target.value); setError(''); }}
+          />
+        </Field>
+        {error && (
+          <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-100 rounded-xl p-3 text-xs font-semibold">
+            <AlertTriangle size={13}/> {error}
+          </div>
+        )}
+        <div className="flex gap-2 pt-2">
+          <button type="button" onClick={onClose} className="usr-btn-ghost flex-1">Cancelar</button>
+          <button type="submit" disabled={saving} className="usr-btn-primary flex-1" style={{ background: '#0284c7' }}>
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Key size={15} />}
+            {saving ? 'Cambiando...' : 'Cambiar contraseña'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL ELIMINAR USUARIO
+═══════════════════════════════════════════════════════════════════════════ */
+const ModalEliminar = ({ open, usuario, onClose, onSaved }) => {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await authService.deleteUsuario(usuario.id);
+      onSaved();
+      onClose();
+    } catch {
+      alert('Error al eliminar el usuario.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Eliminar Usuario" Icon={Trash2} accent="#dc2626">
+      {usuario && (
+        <div className="text-center py-2">
+          <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle size={26} className="text-red-500" />
+          </div>
+          <p className="font-bold text-gray-900 mb-1">
+            ¿Eliminar a <span className="text-red-600">{usuario.username}</span>?
+          </p>
+          <p className="text-sm text-gray-400 mb-6">
+            Esta acción es irreversible. El usuario perderá todo acceso al sistema.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="usr-btn-ghost flex-1">Cancelar</button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="usr-btn-primary flex-1"
+              style={{ background: '#dc2626' }}
+            >
+              {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+              {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
    COMPONENTE PRINCIPAL
 ═══════════════════════════════════════════════════════════════════════════ */
 const Usuarios = () => {
@@ -170,7 +398,7 @@ const Usuarios = () => {
   const [search, setSearch] = useState('');
   const [filterRol, setFilterRol] = useState('todos');
 
-  const [modalEditar, setModalEditar] = useState({ open: false, usuario: null });
+  const [modalEditar,   setModalEditar]   = useState({ open: false, usuario: null });
   const [modalPassword, setModalPassword] = useState({ open: false, usuario: null });
   const [modalEliminar, setModalEliminar] = useState({ open: false, usuario: null });
 
@@ -213,7 +441,7 @@ const Usuarios = () => {
   return (
     <div className="usr-root min-h-screen pt-20 px-4 pb-16 bg-white">
       <style>{STYLES}</style>
-      
+
       <div className="max-w-7xl mx-auto">
         {/* Encabezado */}
         <div className="flex flex-wrap items-start justify-between gap-6 mb-10">
@@ -230,7 +458,7 @@ const Usuarios = () => {
 
         {/* Layout Grid Responsivo */}
         <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 items-start">
-          
+
           {/* Panel Lateral: Crear */}
           <aside className="usr-sticky">
             <div className="usr-card p-6">
@@ -294,11 +522,11 @@ const Usuarios = () => {
                 Usuarios Registrados
                 <span className="bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full text-[10px]">{filteredUsuarios.length}</span>
               </h2>
-              
+
               <div className="flex flex-wrap gap-2 items-center">
                 <div className="flex gap-1">
                   {['todos', 'admin', 'tecnico', 'cliente'].map(r => (
-                    <button key={r} onClick={() => setFilterRol(r)} 
+                    <button key={r} onClick={() => setFilterRol(r)}
                       className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${filterRol === r ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-400 hover:border-gray-300'}`}>
                       {r}
                     </button>
@@ -337,14 +565,18 @@ const Usuarios = () => {
                       <td>
                         <div className="flex flex-col gap-1 items-start">
                           <RolBadge rol={u.rol} />
-                          {u.empresa_id && <span className="text-[10px] text-gray-400 flex items-center gap-1"><Building2 size={10}/>{empresas.find(e => e.id === u.empresa_id)?.nombre}</span>}
+                          {u.empresa_id && (
+                            <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                              <Building2 size={10}/>{empresas.find(e => e.id === u.empresa_id)?.nombre}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div className="flex justify-end gap-2">
-                          <button className="usr-action-btn" onClick={() => setModalEditar({open: true, usuario: u})}><Pencil size={14}/></button>
-                          <button className="usr-action-btn" onClick={() => setModalPassword({open: true, usuario: u})}><Key size={14}/></button>
-                          <button className="usr-action-btn hover:!text-red-500" onClick={() => setModalEliminar({open: true, usuario: u})}><Trash2 size={14}/></button>
+                          <button className="usr-action-btn" title="Editar"           onClick={() => setModalEditar({open: true, usuario: u})}><Pencil size={14}/></button>
+                          <button className="usr-action-btn" title="Cambiar contraseña" onClick={() => setModalPassword({open: true, usuario: u})}><Key size={14}/></button>
+                          <button className="usr-action-btn hover:!text-red-500" title="Eliminar" onClick={() => setModalEliminar({open: true, usuario: u})}><Trash2 size={14}/></button>
                         </div>
                       </td>
                     </tr>
@@ -356,7 +588,30 @@ const Usuarios = () => {
         </div>
       </div>
 
-      {/* Aquí irían los modales ModalEditar, ModalPassword, ModalEliminar (puedes reutilizar los que ya tienes) */}
+      {/* ── Modal Editar ─────────────────────────────────────────────── */}
+      <ModalEditar
+        open={modalEditar.open}
+        usuario={modalEditar.usuario}
+        empresas={empresas}
+        onClose={() => setModalEditar({ open: false, usuario: null })}
+        onSaved={fetchData}
+      />
+
+      {/* ── Modal Cambiar Contraseña ──────────────────────────────────── */}
+      <ModalPassword
+        open={modalPassword.open}
+        usuario={modalPassword.usuario}
+        onClose={() => setModalPassword({ open: false, usuario: null })}
+        onSaved={fetchData}
+      />
+
+      {/* ── Modal Eliminar ────────────────────────────────────────────── */}
+      <ModalEliminar
+        open={modalEliminar.open}
+        usuario={modalEliminar.usuario}
+        onClose={() => setModalEliminar({ open: false, usuario: null })}
+        onSaved={fetchData}
+      />
     </div>
   );
 };
