@@ -49,3 +49,19 @@ body {
     grid-template-columns: repeat(3, 1fr); /* 3 columnas en computadores */
   }
 }
+
+/* Busca y actualiza esta parte en tu bloque STYLES */
+@media (min-width: 1024px) { 
+  .usr-sticky { 
+    position: sticky; 
+    top: 80px; /* Ajusta según el alto de tu navbar */
+    z-index: 10;
+  } 
+}
+
+/* Agregamos esto para que la tabla no se rompa en móviles */
+.usr-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
