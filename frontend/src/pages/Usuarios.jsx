@@ -264,9 +264,10 @@ const ModalPassword = ({ open, usuario, onClose, onSaved }) => {
   const [showPwd, setShowPwd] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    if (open) { setPwd(''); setConfirm(''); setError(''); }
+    if (open) { setPwd(''); setConfirm(''); setError('');setSuccess(''); }
   }, [open]);
 
   const handleSave = async (e) => {
@@ -275,11 +276,17 @@ const ModalPassword = ({ open, usuario, onClose, onSaved }) => {
     if (pwd.length < 4)  { setError('La contraseña debe tener al menos 4 caracteres.'); return; }
     setSaving(true);
     try {
-      await authService.changePassword(usuario.id, { password: pwd });
-      onSaved();
-      onClose();
-    } catch {
-      setError('Error al cambiar la contraseña.');
+      await authService.changePassword(usuario, pwd);      
+        setError('');
+        setSuccess('Contraseña actualizada correctamente ✅');
+        onSaved();
+        //esperar antes de cerrar
+        setTimeout(() => {
+          onClose();
+        }, 2000);
+    } catch (err) {
+      console.error("Detalle del error:", err);
+      setError(err.response?.data?.message || 'Error al cambiar la contraseña.');
     } finally {
       setSaving(false);
     }
@@ -318,7 +325,7 @@ const ModalPassword = ({ open, usuario, onClose, onSaved }) => {
             className="usr-input"
             required
             value={confirm}
-            onChange={e => { setConfirm(e.target.value); setError(''); }}
+            onChange={e => { setConfirm(e.target.value); setError(''); setSuccess('');}}
           />
         </Field>
         {error && (
@@ -326,6 +333,13 @@ const ModalPassword = ({ open, usuario, onClose, onSaved }) => {
             <AlertTriangle size={13}/> {error}
           </div>
         )}
+
+        {success && (
+          <div className="flex items-center gap-2 text-green-600 bg-green-50 border border-green-100 rounded-xl p-3 text-xs font-semibold">
+            <CheckCircle2 size={13}/> {success}
+          </div>
+        )}
+
         <div className="flex gap-2 pt-2">
           <button type="button" onClick={onClose} className="usr-btn-ghost flex-1">Cancelar</button>
           <button type="submit" disabled={saving} className="usr-btn-primary flex-1" style={{ background: '#0284c7' }}>
