@@ -27,6 +27,14 @@ export const authService = {
     return response.data;
   },
 
+  changePassword: async (usuario, password) => {
+    const response = await api.put(`/usuarios/${usuario.id}`, {
+      ...usuario,
+      password: password,
+    });
+    return response.data;
+  },
+
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('rol');
