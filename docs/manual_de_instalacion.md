@@ -421,7 +421,7 @@ docker system prune -a
 -  Hacer backups regulares
 -  Configurar Security Groups
 -  Restringir SSH a tu IP
--  Acceso sin SSL (http) - agregar SSL con Nginx y Let's Encrypt si es necesario para producción
+-  Acceso sin SSL (http).
 
 ---
 
