@@ -290,6 +290,7 @@ const Login = () => {
       localStorage.setItem('rol',      data.rol);
       localStorage.setItem('username', data.username);
       if (data.empresa_id) localStorage.setItem('empresa_id', data.empresa_id);
+      localStorage.setItem('must_change_password', data.must_change_password);
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.detail || 'Credenciales incorrectas');

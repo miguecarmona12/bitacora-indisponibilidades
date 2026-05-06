@@ -40,6 +40,7 @@ export const authService = {
     localStorage.removeItem('rol');
     localStorage.removeItem('username');
     localStorage.removeItem('empresa_id');
+    localStorage.removeItem('must_change_password');
   },
 
   getCurrentUser: () => {
@@ -48,7 +49,17 @@ export const authService = {
       rol: localStorage.getItem('rol'),
       username: localStorage.getItem('username'),
       empresa_id: localStorage.getItem('empresa_id'),
+      must_change_password: localStorage.getItem('must_change_password') === 'true',
     };
+  },
+
+  changePasswordFirstLogin: async (username, oldPassword, newPassword) => {
+    const response = await api.post('/usuarios/change-password-first', {
+      username: username,
+      old_password: oldPassword,
+      new_password: newPassword
+    });
+    return response.data;
   },
 
   getUsuarios: async () => {

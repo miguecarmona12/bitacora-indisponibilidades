@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Table
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Table, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 import datetime
@@ -58,6 +58,7 @@ class Usuario(Base):
     hashed_password = Column(String(200), nullable=False)
     rol = Column(String(20), nullable=False) # 'admin', 'tecnico', 'cliente'
     empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=True) # Ligado a empresa si es cliente/tecnico restrictivo
+    must_change_password = Column(Boolean, default=True, nullable=False)
     
     empresa = relationship("Empresa", back_populates="usuarios")
     incidentes_registrados = relationship("Incidente", back_populates="usuario")

@@ -6,6 +6,7 @@ import Bitacora from './pages/Bitacora';
 import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 import Usuarios from './pages/Usuarios';
+import ForceChangePassword from './pages/ForceChangePassword';
 import { authService } from './services/api';
 
 const PrivateRoute = ({ children, requireRole = null }) => {
@@ -14,6 +15,11 @@ const PrivateRoute = ({ children, requireRole = null }) => {
 
   if (!user.token) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Restricción de cambio de contraseña
+  if (user.must_change_password && location.pathname !== '/force-change-password') {
+    return <Navigate to="/force-change-password" replace />;
   }
 
   // Restricciones de Rol
@@ -35,6 +41,7 @@ function App() {
         <main className="flex-1 w-full relative">
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/force-change-password" element={<PrivateRoute><ForceChangePassword /></PrivateRoute>} />
             <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/bitacora" element={<PrivateRoute requireRole="tecnico"><Bitacora /></PrivateRoute>} />
             <Route path="/configuracion" element={<PrivateRoute requireRole="admin"><Configuracion /></PrivateRoute>} />

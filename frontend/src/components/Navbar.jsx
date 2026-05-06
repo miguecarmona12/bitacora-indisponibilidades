@@ -9,7 +9,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const user = authService.getCurrentUser();
   
-  if (!user.token && location.pathname === '/login') return null;
+  if ((!user.token && location.pathname === '/login') || user.must_change_password) return null;
 
   const handleLogout = () => {
     authService.logout();

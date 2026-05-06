@@ -56,3 +56,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 def get_current_active_user(current_user: models.Usuario = Depends(get_current_user)):
     return current_user
+
+def require_role(allowed_roles: list):
+    def role_checker(current_user: models.Usuario = Depends(get_current_active_user)):
+        if current_user.rol not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tiene permisos para realizar esta acción"
+            )
+        return current_user
+    return role_checker

@@ -119,6 +119,7 @@ class UsuarioCreate(UsuarioBase):
 
 class UsuarioResponse(UsuarioBase):
     id: int
+    must_change_password: bool = True
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -128,6 +129,7 @@ class Token(BaseModel):
     rol: str
     username: str
     empresa_id: int | None = None
+    must_change_password: bool = True
 
 
 class TokenData(BaseModel):
@@ -156,3 +158,8 @@ class UsuarioUpdate(BaseModel):
     password:   Optional[str] = None
     rol:        Optional[str] = None
     empresa_id: Optional[int] = None
+
+class ChangePasswordRequest(BaseModel):
+    username: str
+    old_password: str
+    new_password: str

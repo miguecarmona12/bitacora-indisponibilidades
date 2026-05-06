@@ -9,6 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
 from datetime import timedelta
 from sqlalchemy import text
+import re
 
 # ==============================
 # CREAR TABLAS
@@ -123,18 +124,42 @@ def login(
         "token_type": "bearer",
         "rol": user.rol,
         "username": user.username,
-        "empresa_id": user.empresa_id
+        "empresa_id": user.empresa_id,
+        "must_change_password": user.must_change_password
     }
 
 # ==============================
 # USUARIOS
 # ==============================
+@app.post("/usuarios/change-password-first")
+def change_password_first(datos: schemas.ChangePasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(models.Usuario).filter(models.Usuario.username == datos.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    if not auth.verify_password(datos.old_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
+        
+    if len(datos.new_password) < 8:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 8 caracteres")
+    if not re.search(r"[A-Za-z]", datos.new_password):
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe contener letras")
+    if not re.search(r"[0-9]", datos.new_password):
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe contener números")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", datos.new_password):
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe contener caracteres especiales")
+        
+    user.hashed_password = auth.get_password_hash(datos.new_password)
+    user.must_change_password = False
+    db.commit()
+    return {"ok": True, "message": "Contraseña actualizada exitosamente"}
+
 @app.get("/usuarios", response_model=List[schemas.UsuarioResponse])
-def get_usuarios(db: Session = Depends(get_db)):
+def get_usuarios(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     return db.query(models.Usuario).all()
 
 @app.post("/usuarios", response_model=schemas.UsuarioResponse)
-def create_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db)):
+def create_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     if db.query(models.Usuario).filter(models.Usuario.username == usuario.username).first():
         raise HTTPException(status_code=400, detail="Username ya existe")
     if db.query(models.Usuario).filter(models.Usuario.email == usuario.email).first():
@@ -152,7 +177,7 @@ def create_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db)
     return nuevo
 
 @app.put("/usuarios/{usuario_id}", response_model=schemas.UsuarioResponse)
-def update_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Session = Depends(get_db)):
+def update_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -171,7 +196,7 @@ def update_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Session = 
     return usuario
 
 @app.delete("/usuarios/{usuario_id}")
-def delete_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def delete_usuario(usuario_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -183,11 +208,11 @@ def delete_usuario(usuario_id: int, db: Session = Depends(get_db)):
 # EMPRESAS
 # ==============================
 @app.get("/empresas", response_model=List[schemas.EmpresaResponse])
-def get_empresas(db: Session = Depends(get_db)):
+def get_empresas(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
     return db.query(models.Empresa).all()
 
 @app.post("/empresas", response_model=schemas.EmpresaResponse)
-def create_empresa(empresa: schemas.EmpresaCreate, db: Session = Depends(get_db)):
+def create_empresa(empresa: schemas.EmpresaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     if db.query(models.Empresa).filter(models.Empresa.nombre == empresa.nombre).first():
         raise HTTPException(status_code=400, detail="Empresa ya existe")
     nueva = models.Empresa(nombre=empresa.nombre)
@@ -197,7 +222,7 @@ def create_empresa(empresa: schemas.EmpresaCreate, db: Session = Depends(get_db)
     return nueva
 
 @app.put("/empresas/{empresa_id}", response_model=schemas.EmpresaResponse)
-def update_empresa(empresa_id: int, datos: schemas.EmpresaUpdate, db: Session = Depends(get_db)):
+def update_empresa(empresa_id: int, datos: schemas.EmpresaUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
@@ -207,7 +232,7 @@ def update_empresa(empresa_id: int, datos: schemas.EmpresaUpdate, db: Session = 
     return empresa
 
 @app.delete("/empresas/{empresa_id}")
-def delete_empresa(empresa_id: int, db: Session = Depends(get_db)):
+def delete_empresa(empresa_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
@@ -219,11 +244,11 @@ def delete_empresa(empresa_id: int, db: Session = Depends(get_db)):
 # APLICACIONES
 # ==============================
 @app.get("/aplicaciones", response_model=List[schemas.AplicacionResponse])
-def get_aplicaciones(db: Session = Depends(get_db)):
+def get_aplicaciones(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
     return db.query(models.Aplicacion).all()
 
 @app.post("/aplicaciones", response_model=schemas.AplicacionResponse)
-def create_aplicacion(aplicacion: schemas.AplicacionCreate, db: Session = Depends(get_db)):
+def create_aplicacion(aplicacion: schemas.AplicacionCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     if db.query(models.Aplicacion).filter(models.Aplicacion.nombre == aplicacion.nombre).first():
         raise HTTPException(status_code=400, detail="Aplicación ya existe")
     nueva = models.Aplicacion(nombre=aplicacion.nombre)
@@ -238,7 +263,7 @@ def create_aplicacion(aplicacion: schemas.AplicacionCreate, db: Session = Depend
     return nueva
 
 @app.put("/aplicaciones/{aplicacion_id}", response_model=schemas.AplicacionResponse)
-def update_aplicacion(aplicacion_id: int, datos: schemas.AplicacionUpdate, db: Session = Depends(get_db)):
+def update_aplicacion(aplicacion_id: int, datos: schemas.AplicacionUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     aplicacion = db.query(models.Aplicacion).filter(models.Aplicacion.id == aplicacion_id).first()
     if not aplicacion:
         raise HTTPException(status_code=404, detail="Aplicación no encontrada")
@@ -254,7 +279,7 @@ def update_aplicacion(aplicacion_id: int, datos: schemas.AplicacionUpdate, db: S
     return aplicacion
 
 @app.delete("/aplicaciones/{aplicacion_id}")
-def delete_aplicacion(aplicacion_id: int, db: Session = Depends(get_db)):
+def delete_aplicacion(aplicacion_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     aplicacion = db.query(models.Aplicacion).filter(models.Aplicacion.id == aplicacion_id).first()
     if not aplicacion:
         raise HTTPException(status_code=404, detail="Aplicación no encontrada")
@@ -266,11 +291,11 @@ def delete_aplicacion(aplicacion_id: int, db: Session = Depends(get_db)):
 # CATEGORIAS
 # ==============================
 @app.get("/categorias", response_model=List[schemas.CategoriaResponse])
-def get_categorias(db: Session = Depends(get_db)):
+def get_categorias(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
     return db.query(models.Categoria).all()
 
 @app.post("/categorias", response_model=schemas.CategoriaResponse)
-def create_categoria(categoria: schemas.CategoriaCreate, db: Session = Depends(get_db)):
+def create_categoria(categoria: schemas.CategoriaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     if db.query(models.Categoria).filter(models.Categoria.nombre == categoria.nombre).first():
         raise HTTPException(status_code=400, detail="Categoría ya existe")
     nueva = models.Categoria(nombre=categoria.nombre)
@@ -280,7 +305,7 @@ def create_categoria(categoria: schemas.CategoriaCreate, db: Session = Depends(g
     return nueva
 
 @app.put("/categorias/{categoria_id}", response_model=schemas.CategoriaResponse)
-def update_categoria(categoria_id: int, datos: schemas.CategoriaUpdate, db: Session = Depends(get_db)):
+def update_categoria(categoria_id: int, datos: schemas.CategoriaUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     categoria = db.query(models.Categoria).filter(models.Categoria.id == categoria_id).first()
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoría no encontrada")
@@ -290,7 +315,7 @@ def update_categoria(categoria_id: int, datos: schemas.CategoriaUpdate, db: Sess
     return categoria
 
 @app.delete("/categorias/{categoria_id}")
-def delete_categoria(categoria_id: int, db: Session = Depends(get_db)):
+def delete_categoria(categoria_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     categoria = db.query(models.Categoria).filter(models.Categoria.id == categoria_id).first()
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoría no encontrada")
@@ -302,11 +327,11 @@ def delete_categoria(categoria_id: int, db: Session = Depends(get_db)):
 # PRODUCTOS
 # ==============================
 @app.get("/productos", response_model=List[schemas.ProductoResponse])
-def get_productos(db: Session = Depends(get_db)):
+def get_productos(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
     return db.query(models.Producto).all()
 
 @app.post("/productos", response_model=schemas.ProductoResponse)
-def create_producto(producto: schemas.ProductoCreate, db: Session = Depends(get_db)):
+def create_producto(producto: schemas.ProductoCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     if db.query(models.Producto).filter(models.Producto.nombre == producto.nombre).first():
         raise HTTPException(status_code=400, detail="Producto ya existe")
     nuevo = models.Producto(nombre=producto.nombre, categoria_id=producto.categoria_id)
@@ -316,7 +341,7 @@ def create_producto(producto: schemas.ProductoCreate, db: Session = Depends(get_
     return nuevo
 
 @app.put("/productos/{producto_id}", response_model=schemas.ProductoResponse)
-def update_producto(producto_id: int, datos: schemas.ProductoUpdate, db: Session = Depends(get_db)):
+def update_producto(producto_id: int, datos: schemas.ProductoUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     producto = db.query(models.Producto).filter(models.Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -329,7 +354,7 @@ def update_producto(producto_id: int, datos: schemas.ProductoUpdate, db: Session
     return producto
 
 @app.delete("/productos/{producto_id}")
-def delete_producto(producto_id: int, db: Session = Depends(get_db)):
+def delete_producto(producto_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     producto = db.query(models.Producto).filter(models.Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -341,11 +366,11 @@ def delete_producto(producto_id: int, db: Session = Depends(get_db)):
 # INCIDENTES
 # ==============================
 @app.get("/incidentes", response_model=List[schemas.IncidenteResponse])
-def get_incidentes(db: Session = Depends(get_db)):
+def get_incidentes(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
     return db.query(models.Incidente).all()
 
 @app.post("/incidentes", response_model=schemas.IncidenteResponse)
-def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(get_db)):
+def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
     nuevo = models.Incidente(**incidente.dict())
     db.add(nuevo)
     db.commit()
@@ -353,7 +378,7 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
     return nuevo
 
 @app.post("/incidentes/bulk", response_model=List[schemas.IncidenteResponse])
-def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Session = Depends(get_db)):
+def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
     nuevos = [models.Incidente(**i.dict()) for i in incidentes]
     db.add_all(nuevos)
     db.commit()
@@ -362,7 +387,7 @@ def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Sessio
     return nuevos
 
 @app.put("/incidentes/{incidente_id}", response_model=schemas.IncidenteResponse)
-def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Session = Depends(get_db)):
+def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
     incidente = db.query(models.Incidente).filter(models.Incidente.id == incidente_id).first()
     if not incidente:
         raise HTTPException(status_code=404, detail="Incidente no encontrado")
@@ -373,7 +398,7 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
     return incidente
 
 @app.delete("/incidentes/{incidente_id}")
-def delete_incidente(incidente_id: int, db: Session = Depends(get_db)):
+def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
     incidente = db.query(models.Incidente).filter(models.Incidente.id == incidente_id).first()
     if not incidente:
         raise HTTPException(status_code=404, detail="Incidente no encontrado")
