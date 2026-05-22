@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict ,EmailStr
 from datetime import datetime
 from typing import List, Optional
 
@@ -123,6 +123,8 @@ class UsuarioResponse(UsuarioBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+
+# --- AUTENTICACIÓN ---
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -150,14 +152,20 @@ class IncidenteResponse(IncidenteBase):
     usuario: Optional[UsuarioResponse] = None
     model_config = ConfigDict(from_attributes=True)
 
+# --- ACTUALIZACIÓN DE USUARIO (DIFERENCIADA) ---
 
-# --- Usuarios ---
+# Esto es lo que el usuario común puede editar (su perfil)
 class UsuarioUpdate(BaseModel):
-    username:   Optional[str] = None
-    email:      Optional[str] = None
-    password:   Optional[str] = None
-    rol:        Optional[str] = None
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    # NOTA: NO incluimos 'rol' ni 'empresa_id' aquí para evitar Mass Assignment.
+
+# Esto es lo que SOLO el admin enviará desde el panel de administración
+class UsuarioAdminUpdate(UsuarioUpdate):
+    rol: Optional[str] = None
     empresa_id: Optional[int] = None
+
 
 class ChangePasswordRequest(BaseModel):
     username: str

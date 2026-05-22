@@ -16,6 +16,25 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Interceptor para manejar respuestas con error (como 401 Unauthorized)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Si el token es inválido o expiró, cerramos sesión localmente y redirigimos a login
+      if (!window.location.pathname.includes('/login')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('rol');
+        localStorage.removeItem('username');
+        localStorage.removeItem('empresa_id');
+        localStorage.removeItem('must_change_password');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authService = {
   login: async (username, password) => {
     const formData = new URLSearchParams();
@@ -35,12 +54,20 @@ export const authService = {
     return response.data;
   },
 
-  logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('rol');
-    localStorage.removeItem('username');
-    localStorage.removeItem('empresa_id');
-    localStorage.removeItem('must_change_password');
+  logout: async () => {
+    try {
+      if (localStorage.getItem('token')) {
+        await api.post('/logout');
+      }
+    } catch (error) {
+      console.error('Error al notificar cierre de sesión al servidor:', error);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('rol');
+      localStorage.removeItem('username');
+      localStorage.removeItem('empresa_id');
+      localStorage.removeItem('must_change_password');
+    }
   },
 
   getCurrentUser: () => {

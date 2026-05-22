@@ -11,8 +11,8 @@ const Navbar = () => {
   
   if ((!user.token && location.pathname === '/login') || user.must_change_password) return null;
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     navigate('/login');
   };
 

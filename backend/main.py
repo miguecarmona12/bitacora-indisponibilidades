@@ -10,6 +10,7 @@ from typing import List
 from datetime import timedelta
 from sqlalchemy import text
 import re
+import os
 
 # ==============================
 # CREAR TABLAS
@@ -75,7 +76,7 @@ def create_default_admin():
 # ==============================
 # APP
 # ==============================
-app = FastAPI(title="Bitácora API")
+app = FastAPI(title="Bitácora API", docs_url=None, redoc_url=None, openapi_url=None)
 
 @app.on_event("startup")
 def startup_event():
@@ -84,9 +85,12 @@ def startup_event():
 # ==============================
 # CORS
 # ==============================
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+origins = [origin.strip() for origin in frontend_url.split(",")] if frontend_url else []
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -128,11 +132,25 @@ def login(
         "must_change_password": user.must_change_password
     }
 
+@app.post("/logout")
+def logout(
+    token: str = Depends(auth.oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    # Guardar token en blacklist
+    blacklisted = models.TokenBlacklist(token=token)
+    db.add(blacklisted)
+    db.commit()
+    return {"ok": True, "message": "Sesión cerrada correctamente"}
+
 # ==============================
 # USUARIOS
 # ==============================
 @app.post("/usuarios/change-password-first")
-def change_password_first(datos: schemas.ChangePasswordRequest, db: Session = Depends(get_db)):
+def change_password_first(datos: schemas.ChangePasswordRequest, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
+    if current_user.username != datos.username:
+        raise HTTPException(status_code=403, detail="No autorizado para cambiar esta contraseña")
+        
     user = db.query(models.Usuario).filter(models.Usuario.username == datos.username).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -140,14 +158,7 @@ def change_password_first(datos: schemas.ChangePasswordRequest, db: Session = De
     if not auth.verify_password(datos.old_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
         
-    if len(datos.new_password) < 8:
-        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 8 caracteres")
-    if not re.search(r"[A-Za-z]", datos.new_password):
-        raise HTTPException(status_code=400, detail="La nueva contraseña debe contener letras")
-    if not re.search(r"[0-9]", datos.new_password):
-        raise HTTPException(status_code=400, detail="La nueva contraseña debe contener números")
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", datos.new_password):
-        raise HTTPException(status_code=400, detail="La nueva contraseña debe contener caracteres especiales")
+    auth.validate_password_strength(datos.new_password)
         
     user.hashed_password = auth.get_password_hash(datos.new_password)
     user.must_change_password = False
@@ -164,6 +175,9 @@ def create_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db)
         raise HTTPException(status_code=400, detail="Username ya existe")
     if db.query(models.Usuario).filter(models.Usuario.email == usuario.email).first():
         raise HTTPException(status_code=400, detail="Email ya existe")
+        
+    auth.validate_password_strength(usuario.password)
+    
     nuevo = models.Usuario(
         username=usuario.username,
         email=usuario.email,
@@ -177,23 +191,39 @@ def create_usuario(usuario: schemas.UsuarioCreate, db: Session = Depends(get_db)
     return nuevo
 
 @app.put("/usuarios/{usuario_id}", response_model=schemas.UsuarioResponse)
-def update_usuario(usuario_id: int, datos: schemas.UsuarioUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
-    usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
-    if not usuario:
+def update_usuario(usuario_id: int, datos: schemas.UsuarioAdminUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    usuario_db = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    if not usuario_db:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    # 1. SEGURIDAD: Solo puedes editarte a ti mismo, a menos que seas ADMIN
+    if current_user.id != usuario_id and current_user.rol != "admin":
+        raise HTTPException(status_code=403, detail="No tienes permisos para modificar este usuario")
+
+    # 2. PROCESAR CAMPOS BÁSICOS (Cualquier usuario dueño de la cuenta)
     if datos.username is not None:
-        usuario.username = datos.username
+        usuario_db.username = datos.username
     if datos.email is not None:
-        usuario.email = datos.email
+        usuario_db.email = datos.email
     if datos.password is not None:
-        usuario.hashed_password = auth.get_password_hash(datos.password)
-    if datos.rol is not None:
-        usuario.rol = datos.rol
-    if datos.empresa_id is not None:
-        usuario.empresa_id = datos.empresa_id
+        auth.validate_password_strength(datos.password)
+        usuario_db.hashed_password = auth.get_password_hash(datos.password)
+
+    # 3. SEGURIDAD CRÍTICA: Campos Sensibles (Solo ADMIN)
+    # Si alguien intenta cambiar ROL o EMPRESA_ID
+    if datos.rol is not None or datos.empresa_id is not None:
+        if current_user.rol == "admin":
+            if datos.rol is not None: usuario_db.rol = datos.rol
+            if datos.empresa_id is not None: usuario_db.empresa_id = datos.empresa_id
+        else:
+            # BLOQUEO: Un técnico intentó cambiarse el rol o empresa
+            raise HTTPException(
+                status_code=403, 
+                detail="Solo un administrador puede cambiar el rol o la empresa asignada"
+            )
     db.commit()
-    db.refresh(usuario)
-    return usuario
+    db.refresh(usuario_db)
+    return usuario_db
 
 @app.delete("/usuarios/{usuario_id}")
 def delete_usuario(usuario_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
@@ -209,6 +239,10 @@ def delete_usuario(usuario_id: int, db: Session = Depends(get_db), current_user:
 # ==============================
 @app.get("/empresas", response_model=List[schemas.EmpresaResponse])
 def get_empresas(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
+    if current_user.rol == "cliente":
+        return db.query(models.Empresa).filter(models.Empresa.id == current_user.empresa_id).all()
+    elif current_user.rol == "tecnico" and current_user.empresa_id is not None:
+        return db.query(models.Empresa).filter(models.Empresa.id == current_user.empresa_id).all()
     return db.query(models.Empresa).all()
 
 @app.post("/empresas", response_model=schemas.EmpresaResponse)
@@ -245,6 +279,8 @@ def delete_empresa(empresa_id: int, db: Session = Depends(get_db), current_user:
 # ==============================
 @app.get("/aplicaciones", response_model=List[schemas.AplicacionResponse])
 def get_aplicaciones(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
+    if current_user.rol == "cliente" or (current_user.rol == "tecnico" and current_user.empresa_id is not None):
+        return db.query(models.Aplicacion).join(models.Aplicacion.empresas).filter(models.Empresa.id == current_user.empresa_id).all()
     return db.query(models.Aplicacion).all()
 
 @app.post("/aplicaciones", response_model=schemas.AplicacionResponse)
@@ -367,11 +403,19 @@ def delete_producto(producto_id: int, db: Session = Depends(get_db), current_use
 # ==============================
 @app.get("/incidentes", response_model=List[schemas.IncidenteResponse])
 def get_incidentes(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
+    if current_user.rol == "cliente":
+        return db.query(models.Incidente).filter(models.Incidente.empresa_id == current_user.empresa_id).all()
+    elif current_user.rol == "tecnico" and current_user.empresa_id is not None:
+        return db.query(models.Incidente).filter(models.Incidente.empresa_id == current_user.empresa_id).all()
     return db.query(models.Incidente).all()
 
 @app.post("/incidentes", response_model=schemas.IncidenteResponse)
 def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
+    if current_user.rol == "tecnico" and current_user.empresa_id is not None:
+        if incidente.empresa_id != current_user.empresa_id:
+            raise HTTPException(status_code=403, detail="No autorizado para registrar incidentes en otra empresa")
     nuevo = models.Incidente(**incidente.dict())
+    nuevo.usuario_id = current_user.id
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
@@ -379,7 +423,15 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
 
 @app.post("/incidentes/bulk", response_model=List[schemas.IncidenteResponse])
 def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
-    nuevos = [models.Incidente(**i.dict()) for i in incidentes]
+    if current_user.rol == "tecnico" and current_user.empresa_id is not None:
+        for i in incidentes:
+            if i.empresa_id != current_user.empresa_id:
+                raise HTTPException(status_code=403, detail="No autorizado para registrar incidentes en otra empresa")
+    nuevos = []
+    for i in incidentes:
+        n = models.Incidente(**i.dict())
+        n.usuario_id = current_user.id
+        nuevos.append(n)
     db.add_all(nuevos)
     db.commit()
     for n in nuevos:
@@ -391,6 +443,11 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
     incidente = db.query(models.Incidente).filter(models.Incidente.id == incidente_id).first()
     if not incidente:
         raise HTTPException(status_code=404, detail="Incidente no encontrado")
+    if current_user.rol == "tecnico" and current_user.empresa_id is not None:
+        if incidente.empresa_id != current_user.empresa_id:
+            raise HTTPException(status_code=403, detail="No autorizado para modificar incidentes de otra empresa")
+        if datos.empresa_id is not None and datos.empresa_id != current_user.empresa_id:
+            raise HTTPException(status_code=403, detail="No autorizado para cambiar el incidente a otra empresa")
     for field, value in datos.dict(exclude_unset=True).items():
         setattr(incidente, field, value)
     db.commit()
@@ -402,6 +459,9 @@ def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_u
     incidente = db.query(models.Incidente).filter(models.Incidente.id == incidente_id).first()
     if not incidente:
         raise HTTPException(status_code=404, detail="Incidente no encontrado")
+    if current_user.rol == "tecnico" and current_user.empresa_id is not None:
+        if incidente.empresa_id != current_user.empresa_id:
+            raise HTTPException(status_code=403, detail="No autorizado para eliminar incidentes de otra empresa")
     db.delete(incidente)
     db.commit()
     return {"ok": True}
