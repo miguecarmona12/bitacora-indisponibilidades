@@ -26,7 +26,7 @@ const PrivateRoute = ({ children, requireRole = null }) => {
   if (requireRole === 'admin' && user.rol !== 'admin') {
      return <Navigate to="/" replace />;
   }
-  if (requireRole === 'tecnico' && user.rol === 'cliente') {
+  if (requireRole === 'tecnico' && user.rol !== 'admin' && user.rol !== 'tecnico') {
      return <Navigate to="/" replace />;
   }
 

@@ -85,3 +85,10 @@ class Incidente(Base):
     categoria = relationship("Categoria", back_populates="incidentes")
     producto = relationship("Producto", back_populates="incidentes")
     usuario = relationship("Usuario", back_populates="incidentes_registrados")
+
+class TokenBlacklist(Base):
+    __tablename__ = "token_blacklist"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String(500), unique=True, index=True, nullable=False)
+    agregado_en = Column(DateTime, default=datetime.datetime.utcnow)

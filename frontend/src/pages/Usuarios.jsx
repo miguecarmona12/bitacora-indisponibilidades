@@ -131,12 +131,13 @@ const PwdStrengthBar = ({ password }) => {
 const getPwdStrength = (pwd) => {
   if (!pwd) return { pct: 0, label: '', color: '' };
   let score = 0;
-  if (pwd.length >= 6) score++;
-  if (/[A-Z]/.test(pwd)) score++;
+  if (pwd.length >= 8) score++;
+  if (/[a-zA-Z]/.test(pwd)) score++;
   if (/[0-9]/.test(pwd)) score++;
+  if (/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) score++;
   const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
-  const labels = ['Muy Débil', 'Débil', 'Regular', 'Fuerte'];
-  return { pct: (score + 1) * 25, label: labels[score], color: colors[score] };
+  const labels = ['Muy Débil', 'Débil', 'Regular', 'Fuerte/Segura'];
+  return { pct: score * 25, label: labels[Math.max(0, score - 1)], color: colors[Math.max(0, score - 1)] };
 };
 
 /* ─── Modal base ──────────────────────────────────────────────────────── */
@@ -273,7 +274,11 @@ const ModalPassword = ({ open, usuario, onClose, onSaved }) => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (pwd !== confirm) { setError('Las contraseñas no coinciden.'); return; }
-    if (pwd.length < 4)  { setError('La contraseña debe tener al menos 4 caracteres.'); return; }
+    if (pwd.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
+    if (!/[A-Za-z]/.test(pwd)) { setError('La contraseña debe contener letras.'); return; }
+    if (!/[0-9]/.test(pwd)) { setError('La contraseña debe contener números.'); return; }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) { setError('La contraseña debe contener caracteres especiales.'); return; }
+    
     setSaving(true);
     try {
       await authService.changePassword(usuario, pwd);      
@@ -286,7 +291,7 @@ const ModalPassword = ({ open, usuario, onClose, onSaved }) => {
         }, 2000);
     } catch (err) {
       console.error("Detalle del error:", err);
-      setError(err.response?.data?.message || 'Error al cambiar la contraseña.');
+      setError(err.response?.data?.detail || err.response?.data?.message || 'Error al cambiar la contraseña.');
     } finally {
       setSaving(false);
     }
@@ -434,6 +439,12 @@ const Usuarios = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const pwd = formData.password;
+    if (pwd.length < 8) { alert('La contraseña debe tener al menos 8 caracteres.'); return; }
+    if (!/[A-Za-z]/.test(pwd)) { alert('La contraseña debe contener letras.'); return; }
+    if (!/[0-9]/.test(pwd)) { alert('La contraseña debe contener números.'); return; }
+    if (!/[!@#$%^&*(),.?\":{}|<>]/.test(pwd)) { alert('La contraseña debe contener caracteres especiales.'); return; }
+    
     setCreating(true);
     try {
       const p = { ...formData, empresa_id: formData.empresa_id || null };
@@ -442,7 +453,9 @@ const Usuarios = () => {
       setFlash(true);
       setTimeout(() => setFlash(false), 2400);
       fetchData();
-    } catch { alert('Error al crear usuario.'); }
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Error al crear usuario.');
+    }
     finally { setCreating(false); }
   };
 

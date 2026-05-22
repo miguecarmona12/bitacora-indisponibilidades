@@ -9,9 +9,22 @@ import schemas
 import models
 from database import get_db
 
-SECRET_KEY = "mysecretkey_proyecto_grados_2026"
+import re
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "mysecretkey_proyecto_grados_2026")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
+
+def validate_password_strength(password: str):
+    if len(password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contraseña debe tener al menos 8 caracteres")
+    if not re.search(r"[A-Za-z]", password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contraseña debe contener letras")
+    if not re.search(r"[0-9]", password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contraseña debe contener números")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contraseña debe contener caracteres especiales")
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -41,6 +54,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         detail="No se pudieron validar las credenciales",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # Check if token is blacklisted
+    blacklisted = db.query(models.TokenBlacklist).filter(models.TokenBlacklist.token == token).first()
+    if blacklisted:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token revocado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
