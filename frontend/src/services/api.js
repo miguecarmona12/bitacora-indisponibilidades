@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+// Runtime-config support: prefer window.__APP_CONFIG__.VITE_API_URL, then build-time VITE, then localhost
+const runtimeApiUrl = (typeof window !== 'undefined' && window.__APP_CONFIG__ && window.__APP_CONFIG__.VITE_API_URL)
+  || import.meta.env.VITE_API_URL
+  || 'http://localhost:8000';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: runtimeApiUrl,
   headers: {
     'Content-Type': 'application/json',
   },
