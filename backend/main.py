@@ -11,6 +11,11 @@ from datetime import timedelta
 from sqlalchemy import text
 import re
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # ==============================
 # CREAR TABLAS
