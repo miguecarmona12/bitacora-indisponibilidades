@@ -94,15 +94,14 @@ def create_default_admin():
 # ==============================
 app = FastAPI(title="Bitácora API", docs_url=None, redoc_url=None, openapi_url=None)
 
-@app.on_event("startup")
-def startup_event():
-    create_default_admin()
-
 # ==============================
-# CORS
+# CORS - MUST be first middleware
 # ==============================
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-origins = [origin.strip() for origin in frontend_url.split(",")] if frontend_url else []
+origins = [origin.strip() for origin in frontend_url.split(",")] if frontend_url else ["http://localhost:5173"]
+
+logger.info(f"FRONTEND_URL env: {os.getenv('FRONTEND_URL', 'NOT SET')}")
+logger.info(f"CORS origins configured: {origins}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -111,6 +110,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup_event():
+    create_default_admin()
 
 # ==============================
 # ROOT
@@ -127,11 +130,20 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Login attempt: username={form_data.username}")
     user = db.query(models.Usuario).filter(
         models.Usuario.username == form_data.username
     ).first()
 
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+    if not user:
+        logger.warning(f"User not found: {form_data.username}")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    
+    password_match = auth.verify_password(form_data.password, user.hashed_password)
+    logger.info(f"Password verification: {password_match} (plain len={len(form_data.password)}, hash len={len(user.hashed_password)})")
+    
+    if not password_match:
+        logger.warning(f"Password mismatch for user: {form_data.username}")
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     token = auth.create_access_token(
@@ -139,6 +151,7 @@ def login(
         expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
+    logger.info(f"Login successful for: {form_data.username}")
     return {
         "access_token": token,
         "token_type": "bearer",

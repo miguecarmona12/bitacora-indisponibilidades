@@ -61,14 +61,24 @@ export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
 # Infer FRONTEND_URL from APP_URL (replace backend port 8000 with frontend port 5173)
 FRONTEND_HOST=$(echo "$APP_URL" | sed 's|:8000||g')
 export FRONTEND_URL="${FRONTEND_URL:-${FRONTEND_HOST}:5173}"
+echo "   VITE_API_URL: $VITE_API_URL"
 echo "   FRONTEND_URL: $FRONTEND_URL"
+echo "   ADMIN_PASSWORD: $ADMIN_PASSWORD"
 
 # Build con build-arg
-docker compose build --no-cache --build-arg VITE_API_URL="$VITE_API_URL"
+VITE_API_URL="$VITE_API_URL" \
+  RESET_ADMIN_PASSWORD="$RESET_ADMIN_PASSWORD" \
+  ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+  FRONTEND_URL="$FRONTEND_URL" \
+  docker compose build --no-cache --build-arg VITE_API_URL="$VITE_API_URL"
 
 # 5. Levantar servicios
 echo "[5/5] Levantando servicios..."
-docker compose up -d --remove-orphans
+VITE_API_URL="$VITE_API_URL" \
+  RESET_ADMIN_PASSWORD="$RESET_ADMIN_PASSWORD" \
+  ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+  FRONTEND_URL="$FRONTEND_URL" \
+  docker compose up -d --remove-orphans
 
 # Estado final
 echo "========================================"
