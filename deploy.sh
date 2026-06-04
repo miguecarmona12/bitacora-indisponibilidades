@@ -54,8 +54,10 @@ docker compose down --rmi all --volumes --remove-orphans || true || true
 
 # 4. Build: pasar APP_URL como build-arg y variable de entorno para frontend
 echo "[4/5] Construyendo imágenes con VITE_API_URL=$APP_URL..."
-# Export VITE_API_URL para que docker compose lo use en environment
+# Export VITE_API_URL y RESET_ADMIN_PASSWORD para que docker compose lo use
 export VITE_API_URL="$APP_URL"
+export RESET_ADMIN_PASSWORD="${RESET_ADMIN_PASSWORD:-true}"
+export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
 
 # Build con build-arg
 docker compose build --no-cache --build-arg VITE_API_URL="$VITE_API_URL"
@@ -70,4 +72,9 @@ echo " Estado contenedores"
 echo "========================================"
 docker ps --format 'table {{.Names}}	{{.Status}}	{{.Ports}}'
 
-echo "Deployed. Frontend will use VITE_API_URL=$APP_URL (runtime env-config.js)."
+echo ""
+echo "✅ Deploy completado."
+echo "   Frontend URL: http://<host>:5173"
+echo "   Backend API:  $APP_URL"
+echo "   Admin user:   admin / $ADMIN_PASSWORD"
+echo "   RESET_ADMIN_PASSWORD: $RESET_ADMIN_PASSWORD"

@@ -54,8 +54,12 @@ def create_default_admin():
             models.Usuario.username == "admin"
         ).first()
 
+        # Password default or from env
+        default_password = os.getenv("ADMIN_PASSWORD", "admin123")
+        reset_password = os.getenv("RESET_ADMIN_PASSWORD", "false").lower() == "true"
+
         if not admin_user:
-            hashed_password = auth.get_password_hash("admin123")
+            hashed_password = auth.get_password_hash(default_password)
             nuevo_admin = models.Usuario(
                 username="admin",
                 email="admin@localhost",
@@ -64,9 +68,16 @@ def create_default_admin():
             )
             db.add(nuevo_admin)
             db.commit()
-            print("Admin creado")
+            print(f"Admin creado con contraseña: {default_password}")
         else:
-            print("Admin ya existe")
+            # Resetear contraseña si RESET_ADMIN_PASSWORD=true
+            if reset_password:
+                admin_user.hashed_password = auth.get_password_hash(default_password)
+                admin_user.must_change_password = False
+                db.commit()
+                print(f"Admin password resetada a: {default_password}")
+            else:
+                print("Admin ya existe")
 
     except Exception as e:
         print("Error admin:", e)

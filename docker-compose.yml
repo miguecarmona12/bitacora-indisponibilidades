@@ -32,6 +32,8 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/bitacora
+      RESET_ADMIN_PASSWORD: ${RESET_ADMIN_PASSWORD:-false}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
     volumes:
       - ./backend:/app
     networks:
