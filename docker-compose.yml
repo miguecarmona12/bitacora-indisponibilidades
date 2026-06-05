@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.0'
 
 services:
   db:
@@ -34,7 +34,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/bitacora
       RESET_ADMIN_PASSWORD: ${RESET_ADMIN_PASSWORD:-false}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      FRONTEND_URL: http://10.5.2.223:5173,http://localhost:5173
     volumes:
       - ./backend:/app
     networks:
