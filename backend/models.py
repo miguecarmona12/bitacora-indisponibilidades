@@ -79,6 +79,8 @@ class Incidente(Base):
     ticket = Column(String(100), nullable=True) # Ticket/Caso reportado
     mes_reporte = Column(String(20), index=True) # Ej: "Abril 2024"
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True) # Quien registró la falla
+    tipo_afectacion = Column(String(50), nullable=True)
+    origen_afectacion = Column(String(50), nullable=True)
     
     empresa = relationship("Empresa", back_populates="incidentes")
     aplicacion = relationship("Aplicacion", back_populates="incidentes")

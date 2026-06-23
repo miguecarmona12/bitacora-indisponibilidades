@@ -209,6 +209,8 @@ const Bitacora = () => {
     fecha_inicio:     new Date().toISOString().slice(0, 16),
     duracion_minutos: '',
     motivo: '', solucion: '', ticket: '',
+    tipo_afectacion: 'Caída Total',
+    origen_afectacion: 'Aliado / Tercero',
     mes_reporte: new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' })
   });
 
@@ -269,6 +271,8 @@ const Bitacora = () => {
             fecha_inicio: new Date(formData.fecha_inicio).toISOString(),
             motivo: formData.motivo, solucion: formData.solucion,
             ticket: formData.ticket, mes_reporte: formData.mes_reporte,
+            tipo_afectacion: formData.tipo_afectacion,
+            origen_afectacion: formData.origen_afectacion,
           }))
         )
       );
@@ -293,6 +297,8 @@ const Bitacora = () => {
         producto_id:      editFormData.producto_id   ? parseInt(editFormData.producto_id)   : null,
         duracion_minutos: parseFloat(editFormData.duracion_minutos),
         motivo: editFormData.motivo, solucion: editFormData.solucion, ticket: editFormData.ticket,
+        tipo_afectacion: editFormData.tipo_afectacion,
+        origen_afectacion: editFormData.origen_afectacion,
       });
       setEditingIncidente(null);
       fetchData();
@@ -524,6 +530,36 @@ const Bitacora = () => {
                     onChange={e => setFormData(f => ({ ...f, ticket: e.target.value }))} />
                 </div>
 
+                {/* Tipo de Afectación */}
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    Tipo de Afectación *
+                  </label>
+                  <select
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={formData.tipo_afectacion}
+                    onChange={e => setFormData(f => ({ ...f, tipo_afectacion: e.target.value }))}
+                  >
+                    <option value="Caída Total">Caída Total</option>
+                    <option value="Intermitencia">Intermitencia</option>
+                  </select>
+                </div>
+
+                {/* Origen de Afectación */}
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    Origen de Afectación *
+                  </label>
+                  <select
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={formData.origen_afectacion}
+                    onChange={e => setFormData(f => ({ ...f, origen_afectacion: e.target.value }))}
+                  >
+                    <option value="Aliado / Tercero">Aliado / Tercero</option>
+                    <option value="Interna">Interna</option>
+                  </select>
+                </div>
+
                 {/* Mes reporte */}
                 <div>
                   <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Mes de Reporte</label>
@@ -602,7 +638,27 @@ const Bitacora = () => {
 
                               {/* Falla */}
                               <td className="px-5 py-4 align-top min-w-[180px]">
-                                <p className="font-bold text-gray-900 text-sm leading-tight mb-2">{info.producto}</p>
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  <p className="font-bold text-gray-900 text-sm leading-tight">{info.producto}</p>
+                                  {inc.tipo_afectacion && (
+                                    <span className={`bita-badge text-[9px] ${
+                                      inc.tipo_afectacion === 'Caída Total' 
+                                        ? 'bg-red-50 text-red-600 border border-red-100' 
+                                        : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                    }`}>
+                                      {inc.tipo_afectacion}
+                                    </span>
+                                  )}
+                                  {inc.origen_afectacion && (
+                                    <span className={`bita-badge text-[9px] ${
+                                      inc.origen_afectacion === 'Aliado / Tercero' 
+                                        ? 'bg-blue-50 text-blue-600 border border-blue-100' 
+                                        : 'bg-purple-50 text-purple-600 border border-purple-100'
+                                    }`}>
+                                      {inc.origen_afectacion}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex flex-wrap gap-1">
                                   <span className="bita-badge bg-pink-50    text-pink-700    border border-pink-100">{info.categoria}</span>
                                   <span className="bita-badge bg-violet-50  text-violet-700  border border-violet-100">{info.empresa}</span>
@@ -647,7 +703,9 @@ const Bitacora = () => {
                                           empresa_id: inc.empresa_id || '', aplicacion_id: inc.aplicacion_id || '',
                                           categoria_id: inc.categoria_id || '', producto_id: inc.producto_id || '',
                                           duracion_minutos: inc.duracion_minutos,
-                                          motivo: inc.motivo || '', solucion: inc.solucion || '', ticket: inc.ticket || ''
+                                          motivo: inc.motivo || '', solucion: inc.solucion || '', ticket: inc.ticket || '',
+                                          tipo_afectacion: inc.tipo_afectacion || 'Caída Total',
+                                          origen_afectacion: inc.origen_afectacion || 'Aliado / Tercero'
                                         });
                                       }}
                                       className="p-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 transition-colors"
@@ -772,6 +830,30 @@ const Bitacora = () => {
                     className="bita-input bita-mono w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
                     value={editFormData.ticket}
                     onChange={e => setEditFormData(f => ({ ...f, ticket: e.target.value }))} />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Tipo de Afectación *</label>
+                  <select
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={editFormData.tipo_afectacion}
+                    onChange={e => setEditFormData(f => ({ ...f, tipo_afectacion: e.target.value }))}
+                  >
+                    <option value="Caída Total">Caída Total</option>
+                    <option value="Intermitencia">Intermitencia</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Origen de Afectación *</label>
+                  <select
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={editFormData.origen_afectacion}
+                    onChange={e => setEditFormData(f => ({ ...f, origen_afectacion: e.target.value }))}
+                  >
+                    <option value="Aliado / Tercero">Aliado / Tercero</option>
+                    <option value="Interna">Interna</option>
+                  </select>
                 </div>
 
                 <div className="md:col-span-2">

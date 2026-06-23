@@ -6,12 +6,14 @@ import models
 import schemas
 import auth
 from fastapi.security import OAuth2PasswordRequestForm
-from typing import List
-from datetime import timedelta
+from typing import List, Optional
+from datetime import timedelta, datetime
 from sqlalchemy import text
 import re
 import os
 import logging
+import json
+import google.generativeai as genai
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -45,6 +47,22 @@ try:
     with engine.begin() as conn:
         conn.execute(text(
             "ALTER TABLE aplicaciones ADD COLUMN empresa_id INTEGER REFERENCES empresas(id)"
+        ))
+except Exception:
+    pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE incidentes ADD COLUMN tipo_afectacion VARCHAR(50)"
+        ))
+except Exception:
+    pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE incidentes ADD COLUMN origen_afectacion VARCHAR(50)"
         ))
 except Exception:
     pass
@@ -99,6 +117,13 @@ app = FastAPI(title="Bitácora API", docs_url=None, redoc_url=None, openapi_url=
 # ==============================
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
 origins = [origin.strip() for origin in frontend_url.split(",")] if frontend_url else ["http://localhost:5173"]
+
+# Agregar orígenes locales comunes de desarrollo (puertos correlativos de Vite)
+puertos_adicionales = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175",
+                       "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175"]
+for p in puertos_adicionales:
+    if p not in origins:
+        origins.append(p)
 
 logger.info(f"FRONTEND_URL env: {os.getenv('FRONTEND_URL', 'NOT SET')}")
 logger.info(f"CORS origins configured: {origins}")
@@ -494,3 +519,407 @@ def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_u
     db.delete(incidente)
     db.commit()
     return {"ok": True}
+
+
+# ==============================
+# AI INTELLIGENT AGENT ENDPOINTS
+# ==============================
+
+@app.post("/api/ai/analizar", response_model=schemas.IncidenteExtraidoResponse)
+def analizar_incidente_ia(
+    datos: schemas.AIPromptRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))
+):
+    # 1. Obtener catálogos de la BD
+    empresas = db.query(models.Empresa).all()
+    aplicaciones = db.query(models.Aplicacion).all()
+    categorias = db.query(models.Categoria).all()
+    productos = db.query(models.Producto).all()
+    
+    empresas_list = [{"id": e.id, "nombre": e.nombre} for e in empresas]
+    aplicaciones_list = [{"id": a.id, "nombre": a.nombre} for a in aplicaciones]
+    categorias_list = [{"id": c.id, "nombre": c.nombre} for c in categorias]
+    productos_list = [{"id": p.id, "nombre": p.nombre, "categoria_id": p.categoria_id} for p in productos]
+    
+    # Restricción: Si el usuario es técnico y está asignado a una empresa, forzar esa empresa
+    empresa_fijada_id = current_user.empresa_id if current_user.rol == "tecnico" else None
+    
+    # 2. Configurar Gemini
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY no configurado en el backend")
+    
+    genai.configure(api_key=api_key)
+    
+    fecha_actual_iso = datetime.now().isoformat()
+    
+    # Generar texto instructivo
+    empresa_restrictive_rule = ""
+    if empresa_fijada_id:
+        empresa_restrictive_rule = f"IMPORTANTE: El usuario actual es un técnico limitado a la empresa con ID {empresa_fijada_id}. Por lo tanto, el empresa_id DEBE ser {empresa_fijada_id}."
+
+    system_instruction = f"""
+    Eres un asistente experto de soporte TI y redes. Tu tarea es analizar un reporte de caída de servicio / indisponibilidad escrito en lenguaje natural y estructurarlo en un objeto JSON correspondiente a un incidente.
+    
+    Fecha y hora de referencia actual del servidor: {fecha_actual_iso}
+    
+    CATÁLOGOS ACTUALES EN LA BASE DE DATOS (Usa estrictamente estos IDs para los registros existentes):
+    - Empresas (Proveedores/Redes): {json.dumps(empresas_list)}
+    - Aplicaciones: {json.dumps(aplicaciones_list)}
+    - Categorías: {json.dumps(categorias_list)}
+    - Productos: {json.dumps(productos_list)}
+    
+    REGLAS DE EXTRACCIÓN Y MAPEO:
+    1. Identifica la Empresa (proveedor/red) afectada. Si coincide semánticamente (ej: "Claro Colombia" o "Red Claro" -> "Claro"), asocia su `empresa_id`.
+       {empresa_restrictive_rule}
+    2. Identifica la Aplicación afectada.
+       - Si el usuario indica explícitamente "aplicación" o "app" o "aplicativo" (ej: "afectación aplicación invictus"), debes mapearlo a la aplicación.
+       - Si ya existe en la lista, asocia su `aplicacion_id`.
+       - Si NO existe en el catálogo, pon `aplicacion_id` como null y coloca el nombre en `nueva_aplicacion_nombre`.
+       - Si NO se menciona ni se infiere ninguna aplicación, pon `aplicacion_id` como null y establece `nueva_aplicacion_nombre` exactamente como "SIN APP".
+    3. Identifica el Producto afectado.
+       - Si el usuario indica explícitamente "producto" (ej: "producto recargas metro"), debes mapearlo al producto.
+       - Si el producto ya existe en la lista, asocia su `producto_id` y su `categoria_id`.
+       - Si el producto NO existe en el catálogo, pon `producto_id` como null y coloca el nombre en `nuevo_producto_nombre`.
+       - Si el producto es nuevo, debes determinar su categoría. Revisa las categorías existentes y asocia la que mejor se adapte en `categoria_id`. Si ninguna categoría se adapta, pon `categoria_id` como null y sugiere un nombre de categoría nuevo en `nueva_categoria_nombre`.
+       - Si NO se menciona ni se infiere ningún producto, pon `producto_id` como null y establece `nuevo_producto_nombre` exactamente como "SIN PROD".
+    4. REGLA ESTRICTA DE DIFERENCIACIÓN:
+       - No confundas aplicaciones con productos. Si el prompt dice "aplicación invictus", "invictus" es una Aplicación, por lo tanto debes poner `nueva_aplicacion_nombre = "invictus"` y `nuevo_producto_nombre = "SIN PROD"`. No lo crees como producto.
+       - Si el prompt dice "producto recargas metro", "recargas metro" es un Producto, por lo tanto debes poner `nuevo_producto_nombre = "recargas metro"` y `nueva_aplicacion_nombre = "SIN APP"`. No lo crees como aplicación.
+    5. Convierte descripciones relativas de fecha/hora de inicio (ej: "hace 30 minutos", "hoy a las 9:15am", "ayer en la noche") en una fecha exacta en formato ISO 8601 (YYYY-MM-DDTHH:MM:SS) utilizando la fecha de referencia del servidor.
+    6. Extrae la duración. Si se indica en horas (ej: "1.5 horas"), conviértela a minutos (ej: 90). El campo `duracion_minutos` es numérico.
+    7. Determina el mes y año del reporte en el campo `mes_reporte` en español con formato "NombreMes Año" (ej: "Mayo 2026"), basándote en la fecha del incidente.
+    8. Extrae el 'motivo' y la 'solucion' del texto. Si no se menciona una solución, pon null.
+    9. Extrae el número de ticket (ej: "INC0032912" o "ticket 12345") en el campo `ticket` si se menciona. Si no, pon null.
+    10. Identifica el tipo de afectación en `tipo_afectacion`:
+        - Si el texto indica que el servicio se cayó por completo, quedó offline o no funciona del todo, pon "Caída Total".
+        - Si el texto indica inestabilidad, lentitud, intermitencias o que funciona a ratos, pon "Intermitencia".
+        - Por defecto, si no se especifica la naturaleza de la falla, pon "Caída Total".
+    11. Identifica el origen de la afectación en `origen_afectacion`:
+        - Si la falla fue causada por un proveedor externo, aliado, operador móvil, corte de fibra externo o vencimiento de certificados del proveedor, pon "Aliado / Tercero".
+        - Si la falla fue interna, por ejemplo el servidor de la empresa se llenó de memoria, base de datos bloqueada, errores de código propios o mantenimiento interno, pon "Interna".
+        - Por defecto, si no es claro quién la causó, pon "Aliado / Tercero".
+    """
+    
+    # Inicializar el modelo con el system_instruction correcto
+    model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=system_instruction)
+    
+    # Esquema en formato diccionario compatible
+    raw_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "empresa_id": {"type": "INTEGER", "nullable": True},
+            "aplicacion_id": {"type": "INTEGER", "nullable": True},
+            "categoria_id": {"type": "INTEGER", "nullable": True},
+            "producto_id": {"type": "INTEGER", "nullable": True},
+            "nuevo_producto_nombre": {"type": "STRING", "nullable": True},
+            "nueva_categoria_nombre": {"type": "STRING", "nullable": True},
+            "nueva_aplicacion_nombre": {"type": "STRING", "nullable": True},
+            "fecha_inicio": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS"},
+            "duracion_minutos": {"type": "NUMBER"},
+            "motivo": {"type": "STRING", "nullable": True},
+            "solucion": {"type": "STRING", "nullable": True},
+            "ticket": {"type": "STRING", "nullable": True},
+            "mes_reporte": {"type": "STRING"},
+            "tipo_afectacion": {"type": "STRING", "enum": ["Caída Total", "Intermitencia"], "nullable": True},
+            "origen_afectacion": {"type": "STRING", "enum": ["Aliado / Tercero", "Interna"], "nullable": True}
+        },
+        "required": ["fecha_inicio", "duracion_minutos", "mes_reporte"]
+    }
+    
+    try:
+        response = model.generate_content(
+            f"Analiza e identifica los datos de indisponibilidad en el siguiente reporte: '{datos.prompt}'",
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json",
+                response_schema=raw_schema
+            )
+        )
+        parsed_data = json.loads(response.text)
+        
+        # Validación extra: si el técnico tiene empresa_id, forzarlo
+        if empresa_fijada_id:
+            parsed_data["empresa_id"] = empresa_fijada_id
+            
+        return parsed_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al procesar con IA: {str(e)}")
+
+
+@app.post("/api/ai/chat", response_model=schemas.AIChatResponse)
+def chat_asesor_ia(
+    chat_req: schemas.AIChatRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.get_current_active_user)
+):
+    # 1. Consultar catálogos
+    empresas = db.query(models.Empresa).all()
+    aplicaciones = db.query(models.Aplicacion).all()
+    categorias = db.query(models.Categoria).all()
+    productos = db.query(models.Producto).all()
+    
+    empresas_list = [{"id": e.id, "nombre": e.nombre} for e in empresas]
+    aplicaciones_list = [{"id": a.id, "nombre": a.nombre} for a in aplicaciones]
+    categorias_list = [{"id": c.id, "nombre": c.nombre} for c in categorias]
+    productos_list = [{"id": p.id, "nombre": p.nombre, "categoria_id": p.categoria_id} for p in productos]
+    
+    # 2. RAG - Historial de incidentes para dar sugerencias basadas en el histórico
+    query_incidentes = db.query(models.Incidente)
+    if current_user.rol in ["cliente", "tecnico"] and current_user.empresa_id is not None:
+        query_incidentes = query_incidentes.filter(models.Incidente.empresa_id == current_user.empresa_id)
+        
+    incidentes_db = query_incidentes.order_by(models.Incidente.fecha_inicio.desc()).limit(30).all()
+    
+    historial_incidentes_text = ""
+    for idx, inc in enumerate(incidentes_db):
+        emp = inc.empresa.nombre if inc.empresa else "N/A"
+        app = inc.aplicacion.nombre if inc.aplicacion else "N/A"
+        cat = inc.categoria.nombre if inc.categoria else "N/A"
+        prod = inc.producto.nombre if inc.producto else "N/A"
+        fecha_str = inc.fecha_inicio.strftime("%d/%m/%Y %H:%M") if inc.fecha_inicio else "N/A"
+        historial_incidentes_text += (
+            f"{idx+1}. Fecha: {fecha_str} | Red/Empresa: {emp} | App: {app} | Categoría: {cat} | "
+            f"Producto: {prod} | Motivo: {inc.motivo or 'N/A'} | Solución: {inc.solucion or 'N/A'} | Duración: {inc.duracion_minutos} min\n"
+        )
+    
+    # 3. Configurar Gemini
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY no configurado en el backend")
+    
+    genai.configure(api_key=api_key)
+    
+    fecha_actual_iso = datetime.now().isoformat()
+    empresa_fijada_id = current_user.empresa_id if current_user.rol == "tecnico" else None
+    
+    empresa_restrictive_rule_chat = ""
+    if empresa_fijada_id:
+        empresa_restrictive_rule_chat = f"- IMPORTANTE: Como el usuario es técnico de la empresa {empresa_fijada_id}, el empresa_id en la extracción debe ser obligatoriamente {empresa_fijada_id}."
+
+    # 4. Diseñar System Instruction para clasificar y responder
+    system_instruction = f"""
+    Eres 'Asesor IA', un asistente inteligente e integrado en el sistema de gestión de indisponibilidades 'Bitácora GDO'. Tu rol es doble:
+    
+    1. ASESOR TÉCNICO Y DE HISTÓRICOS (RAG):
+       - Si el usuario te hace preguntas sobre errores técnicos (ej: error 502, falla de enlace, etc.) o consultas sobre el histórico de caídas, revisa el HISTORIAL DE INCIDENTES DEL SISTEMA provisto abajo.
+       - Si encuentras incidentes similares en el historial, menciónalos y explica qué solución se aplicó en el pasado. Ej: "Veo en el histórico que el 15/05/2026 se solucionó una caída de Nginx reiniciando el servicio...".
+       - Si no hay coincidencias directas en el historial, responde con tus conocimientos técnicos generales recomendando mejores prácticas para diagnosticar y solucionar el error planteado.
+       
+    2. DETECTOR DE REGISTROS DE INCIDENTES:
+       - Analiza la última entrada del usuario. Si el usuario describe un incidente ocurrido recientemente para que sea registrado (ej: "Quiero registrar que hoy a las 8 am...", o "Tuvimos una caída en la red Claro de 2 horas por falla de fibra..."), debes hacer lo siguiente:
+         - Establece `incident_detected = true`.
+         - Extrae la información estructurada del incidente en `extracted_data` siguiendo los catálogos y reglas detalladas abajo.
+         - En el campo `response`, da un saludo cordial y dile que has detectado un incidente y que puede confirmarlo en la tarjeta que aparece abajo.
+       - Si el usuario solo está conversando, preguntando soluciones o no está reportando un incidente específico para registrar, establece `incident_detected = false`, `extracted_data = null` y responde de forma conversacional/técnica en `response`.
+       
+    DATOS DEL USUARIO ACTUAL:
+    - Nombre: {current_user.username}
+    - Rol: {current_user.rol}
+    - Empresa Asignada: {current_user.empresa_id or 'Todas (Administrador)'}
+    
+    HISTORIAL DE INCIDENTES REGISTRADOS EN EL SISTEMA (Usa esto para responder preguntas de soporte basadas en el histórico):
+    {historial_incidentes_text or 'No hay incidentes registrados actualmente en el sistema.'}
+    
+    CATÁLOGOS ACTUALES DE LA BASE DE DATOS (Para extracción de incidentes):
+    - Empresas (Proveedores): {json.dumps(empresas_list)}
+    - Aplicaciones: {json.dumps(aplicaciones_list)}
+    - Categorías: {json.dumps(categorias_list)}
+    - Productos: {json.dumps(productos_list)}
+    
+    REGLAS DE EXTRACCIÓN PARA 'extracted_data':
+    - Rige bajo las mismas normas de análisis de fecha y mapeo semántico.
+    - Fecha de referencia del servidor: {fecha_actual_iso}
+    {empresa_restrictive_rule_chat}
+    - Identifica la Aplicación afectada:
+      - Si el usuario indica explícitamente "aplicación" o "app" o "aplicativo" (ej: "afectación aplicación invictus"), debes mapearlo a la aplicación.
+      - Si ya existe en la lista, asocia su `aplicacion_id`.
+      - Si NO existe en el catálogo, pon `aplicacion_id` como null y coloca el nombre en `nueva_aplicacion_nombre`.
+      - Si NO se menciona ni se infiere ninguna aplicación, pon `aplicacion_id` como null y establece `nueva_aplicacion_nombre` exactamente como "SIN APP".
+    - Identifica el Producto afectado:
+      - Si el usuario indica explícitamente "producto" (ej: "producto recargas metro"), debes mapearlo al producto.
+      - Si el producto ya existe en la lista, asocia su `producto_id` y su `categoria_id`.
+      - Si el producto NO existe en el catálogo, pon `producto_id` como null y coloca el nombre en `nuevo_producto_nombre`.
+      - Si el producto es nuevo, debes determinar su categoría. Revisa las categorías existentes y asocia la que mejor se adapte en `categoria_id`. Si ninguna categoría se adapta, pon `categoria_id` como null y sugiere un nombre de categoría nuevo en `nueva_categoria_nombre`.
+      - Si NO se menciona ni se infiere ningún producto, pon `producto_id` como null y establece `nuevo_producto_nombre` exactamente como "SIN PROD".
+    - REGLA ESTRICTA DE DIFERENCIACIÓN:
+      - No confundas aplicaciones con productos. Si el prompt dice "aplicación invictus", "invictus" es una Aplicación, por lo tanto debes poner `nueva_aplicacion_nombre = "invictus"` y `nuevo_producto_nombre = "SIN PROD"`. No lo crees como producto.
+      - Si el prompt dice "producto recargas metro", "recargas metro" es un Producto, por lo tanto debes poner `nuevo_producto_nombre = "recargas metro"` y `nueva_aplicacion_nombre = "SIN APP"`. No lo crees como aplicación.
+    - Identifica el tipo de afectación en `tipo_afectacion`:
+      - Si se cayó por completo, quedó fuera de línea o no funciona en absoluto, pon "Caída Total".
+      - Si presenta inestabilidades, intermitencias o lentitud, pon "Intermitencia".
+      - Por defecto, pon "Caída Total".
+    - Identifica el origen de la afectación en `origen_afectacion`:
+      - Si es por fallas de un proveedor externo, aliado, operador, corte de fibra del proveedor o vencimiento de certificados ajenos, pon "Aliado / Tercero".
+      - Si es por fallas internas de la empresa, servidor propio lleno de memoria, bugs locales, etc., pon "Interna".
+      - Por defecto, pon "Aliado / Tercero".
+    """
+    
+    # Inicializar el modelo con el system_instruction correcto y gemini-2.5-flash
+    model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=system_instruction)
+    
+    # 5. Formatear historial de mensajes para Gemini usando el formato de partes con diccionario {"text": ...}
+    contents = []
+    for msg in chat_req.messages[:-1]:
+        role = 'user' if msg.role == 'user' else 'model'
+        contents.append({"role": role, "parts": [{"text": msg.content}]})
+    
+    ultimo_mensaje = chat_req.messages[-1].content
+    contents.append({"role": "user", "parts": [{"text": ultimo_mensaje}]})
+    
+    # Esquema en formato diccionario compatible
+    raw_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "response": {"type": "STRING", "description": "Respuesta conversacional al usuario."},
+            "incident_detected": {"type": "BOOLEAN", "description": "Si se detectó que el usuario reporta un incidente."},
+            "extracted_data": {
+                "type": "OBJECT",
+                "nullable": True,
+                "properties": {
+                    "empresa_id": {"type": "INTEGER", "nullable": True},
+                    "aplicacion_id": {"type": "INTEGER", "nullable": True},
+                    "categoria_id": {"type": "INTEGER", "nullable": True},
+                    "producto_id": {"type": "INTEGER", "nullable": True},
+                    "nuevo_producto_nombre": {"type": "STRING", "nullable": True},
+                    "nueva_categoria_nombre": {"type": "STRING", "nullable": True},
+                    "nueva_aplicacion_nombre": {"type": "STRING", "nullable": True},
+                    "fecha_inicio": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS"},
+                    "duracion_minutos": {"type": "NUMBER"},
+                    "motivo": {"type": "STRING", "nullable": True},
+                    "solucion": {"type": "STRING", "nullable": True},
+                    "ticket": {"type": "STRING", "nullable": True},
+                    "mes_reporte": {"type": "STRING"},
+                    "tipo_afectacion": {"type": "STRING", "enum": ["Caída Total", "Intermitencia"], "nullable": True},
+                    "origen_afectacion": {"type": "STRING", "enum": ["Aliado / Tercero", "Interna"], "nullable": True}
+                },
+                "required": ["fecha_inicio", "duracion_minutos", "mes_reporte"]
+            }
+        },
+        "required": ["response", "incident_detected"]
+    }
+    
+    try:
+        response = model.generate_content(
+            contents,
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json",
+                response_schema=raw_schema
+            )
+        )
+        parsed_res = json.loads(response.text)
+        
+        # Forzar empresa_id del técnico
+        if parsed_res.get("incident_detected") and parsed_res.get("extracted_data") and empresa_fijada_id:
+            parsed_res["extracted_data"]["empresa_id"] = empresa_fijada_id
+            
+        return parsed_res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en el chat de IA: {str(e)}")
+
+
+@app.post("/api/ai/registrar", response_model=schemas.IncidenteResponse)
+def registrar_incidente_ia(
+    datos: schemas.IncidenteExtraidoResponse,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))
+):
+    # 1. Validaciones de empresa para técnicos
+    if current_user.rol == "tecnico" and current_user.empresa_id is not None:
+        if datos.empresa_id != current_user.empresa_id:
+            raise HTTPException(status_code=403, detail="No autorizado para registrar incidentes en otra empresa")
+
+    # 2. Validaciones de creación de entidades para técnicos (analistas)
+    if current_user.rol != "admin":
+        has_new_app = datos.nueva_aplicacion_nombre and datos.nueva_aplicacion_nombre.strip() and datos.nueva_aplicacion_nombre.strip().upper() != "SIN APP"
+        has_new_prod = datos.nuevo_producto_nombre and datos.nuevo_producto_nombre.strip() and datos.nuevo_producto_nombre.strip().upper() != "SIN PROD"
+        if has_new_app or has_new_prod:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permisos para crear nuevas aplicaciones o productos. Comunícate con el administrador para que sean creados."
+            )
+
+    # 3. Resolver/Crear Aplicación si aplica
+    aplicacion_id = datos.aplicacion_id
+    app_nombre = datos.nueva_aplicacion_nombre.strip() if datos.nueva_aplicacion_nombre else None
+    if not aplicacion_id:
+        if not app_nombre:
+            app_nombre = "SIN APP"
+        
+        aplicacion_db = db.query(models.Aplicacion).filter(
+            models.Aplicacion.nombre.ilike(app_nombre)
+        ).first()
+        if not aplicacion_db:
+            aplicacion_db = models.Aplicacion(nombre=app_nombre)
+            if datos.empresa_id:
+                empresa_db = db.query(models.Empresa).filter(models.Empresa.id == datos.empresa_id).first()
+                if empresa_db:
+                    aplicacion_db.empresas.append(empresa_db)
+            db.add(aplicacion_db)
+            db.commit()
+            db.refresh(aplicacion_db)
+        aplicacion_id = aplicacion_db.id
+
+    # 3. Resolver/Crear Categoría si aplica
+    categoria_id = datos.categoria_id
+    if datos.nueva_categoria_nombre:
+        nombre_cat = datos.nueva_categoria_nombre.strip()
+        categoria_db = db.query(models.Categoria).filter(
+            models.Categoria.nombre.ilike(nombre_cat)
+        ).first()
+        if not categoria_db:
+            categoria_db = models.Categoria(nombre=nombre_cat)
+            db.add(categoria_db)
+            db.commit()
+            db.refresh(categoria_db)
+        categoria_id = categoria_db.id
+
+    # 4. Resolver/Crear Producto si aplica
+    producto_id = datos.producto_id
+    prod_nombre = datos.nuevo_producto_nombre.strip() if datos.nuevo_producto_nombre else None
+    if not producto_id:
+        if not prod_nombre:
+            prod_nombre = "SIN PROD"
+            
+        producto_db = db.query(models.Producto).filter(
+            models.Producto.nombre.ilike(prod_nombre)
+        ).first()
+        if not producto_db:
+            if not categoria_id:
+                primera_cat = db.query(models.Categoria).first()
+                if primera_cat:
+                    categoria_id = primera_cat.id
+                else:
+                    general_cat = models.Categoria(nombre="General")
+                    db.add(general_cat)
+                    db.commit()
+                    db.refresh(general_cat)
+                    categoria_id = general_cat.id
+            
+            producto_db = models.Producto(nombre=prod_nombre, categoria_id=categoria_id)
+            db.add(producto_db)
+            db.commit()
+            db.refresh(producto_db)
+        producto_id = producto_db.id
+
+    # 5. Crear el registro del Incidente
+    nuevo_incidente = models.Incidente(
+        empresa_id=datos.empresa_id,
+        aplicacion_id=aplicacion_id,
+        categoria_id=categoria_id,
+        producto_id=producto_id,
+        fecha_inicio=datos.fecha_inicio,
+        duracion_minutos=datos.duracion_minutos,
+        motivo=datos.motivo,
+        solucion=datos.solucion,
+        ticket=datos.ticket,
+        mes_reporte=datos.mes_reporte,
+        usuario_id=current_user.id,
+        tipo_afectacion=datos.tipo_afectacion,
+        origen_afectacion=datos.origen_afectacion
+    )
+    
+    db.add(nuevo_incidente)
+    db.commit()
+    db.refresh(nuevo_incidente)
+    return nuevo_incidente
