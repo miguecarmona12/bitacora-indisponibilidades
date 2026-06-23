@@ -1,29 +1,12 @@
 import axios from 'axios';
 
-const defaultApiUrl = typeof window !== 'undefined' && window.location.protocol === 'https:'
-  ? 'https://bita-backend.ux.local'
-  : 'http://localhost:8000';
-
 // Runtime-config support: prefer window.__APP_CONFIG__.VITE_API_URL, then build-time VITE, then localhost
 const runtimeApiUrl = (typeof window !== 'undefined' && window.__APP_CONFIG__ && window.__APP_CONFIG__.VITE_API_URL)
   || import.meta.env.VITE_API_URL
-  || defaultApiUrl;
-
-const normalizeApiUrl = (url) => {
-  if (!url) return url;
-  try {
-    const parsed = new URL(url, window?.location?.origin || undefined);
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && parsed.protocol === 'http:' && parsed.hostname === window.location.hostname) {
-      parsed.protocol = 'https:';
-    }
-    return parsed.toString().replace(/\/$/, '');
-  } catch (error) {
-    return url;
-  }
-};
+  || 'http://localhost:8000';
 
 const api = axios.create({
-  baseURL: normalizeApiUrl(runtimeApiUrl),
+  baseURL: runtimeApiUrl,
   headers: {
     'Content-Type': 'application/json',
   },
