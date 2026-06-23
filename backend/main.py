@@ -67,6 +67,14 @@ try:
 except Exception:
     pass
 
+try:
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE incidentes ADD COLUMN fecha_fin TIMESTAMP"
+        ))
+except Exception:
+    pass
+
 # ==============================
 # CREAR ADMIN
 # ==============================
@@ -587,7 +595,7 @@ def analizar_incidente_ia(
     4. REGLA ESTRICTA DE DIFERENCIACIÓN:
        - No confundas aplicaciones con productos. Si el prompt dice "aplicación invictus", "invictus" es una Aplicación, por lo tanto debes poner `nueva_aplicacion_nombre = "invictus"` y `nuevo_producto_nombre = "SIN PROD"`. No lo crees como producto.
        - Si el prompt dice "producto recargas metro", "recargas metro" es un Producto, por lo tanto debes poner `nuevo_producto_nombre = "recargas metro"` y `nueva_aplicacion_nombre = "SIN APP"`. No lo crees como aplicación.
-    5. Convierte descripciones relativas de fecha/hora de inicio (ej: "hace 30 minutos", "hoy a las 9:15am", "ayer en la noche") en una fecha exacta en formato ISO 8601 (YYYY-MM-DDTHH:MM:SS) utilizando la fecha de referencia del servidor.
+    5. Convierte descripciones relativas de fecha/hora de inicio y fin (ej: "hace 30 minutos", "hoy a las 9:15am", "ayer en la noche") en fechas exactas en formato ISO 8601 (YYYY-MM-DDTHH:MM:SS) utilizando la fecha de referencia del servidor. Si no se puede inferir una fecha/hora de finalización (`fecha_fin`), calcúlala sumando `duracion_minutos` a la `fecha_inicio`.
     6. Extrae la duración. Si se indica en horas (ej: "1.5 horas"), conviértela a minutos (ej: 90). El campo `duracion_minutos` es numérico.
     7. Determina el mes y año del reporte en el campo `mes_reporte` en español con formato "NombreMes Año" (ej: "Mayo 2026"), basándote en la fecha del incidente.
     8. Extrae el 'motivo' y la 'solucion' del texto. Si no se menciona una solución, pon null.
@@ -617,6 +625,7 @@ def analizar_incidente_ia(
             "nueva_categoria_nombre": {"type": "STRING", "nullable": True},
             "nueva_aplicacion_nombre": {"type": "STRING", "nullable": True},
             "fecha_inicio": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS"},
+            "fecha_fin": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS", "nullable": True},
             "duracion_minutos": {"type": "NUMBER"},
             "motivo": {"type": "STRING", "nullable": True},
             "solucion": {"type": "STRING", "nullable": True},
@@ -753,6 +762,9 @@ def chat_asesor_ia(
       - Si es por fallas de un proveedor externo, aliado, operador, corte de fibra del proveedor o vencimiento de certificados ajenos, pon "Aliado / Tercero".
       - Si es por fallas internas de la empresa, servidor propio lleno de memoria, bugs locales, etc., pon "Interna".
       - Por defecto, pon "Aliado / Tercero".
+    - Convierte descripciones relativas de fecha/hora de inicio y fin (ej: "hace 30 minutos", "hoy a las 9:15am", "ayer en la noche") en fechas exactas en formato ISO 8601 (YYYY-MM-DDTHH:MM:SS) utilizando la fecha de referencia del servidor. Si no se puede inferir una fecha/hora de finalización (`fecha_fin`), calcúlala sumando `duracion_minutos` a la `fecha_inicio`.
+    - Extrae la duración. Si se indica en horas (ej: "1.5 horas"), conviértela a minutos (ej: 90). El campo `duracion_minutos` es numérico.
+    - Determina el mes y año del reporte en el campo `mes_reporte` en español con formato "NombreMes Año" (ej: "Mayo 2026"), basándote en la fecha del incidente.
     """
     
     # Inicializar el modelo con el system_instruction correcto y gemini-2.5-flash
@@ -785,6 +797,7 @@ def chat_asesor_ia(
                     "nueva_categoria_nombre": {"type": "STRING", "nullable": True},
                     "nueva_aplicacion_nombre": {"type": "STRING", "nullable": True},
                     "fecha_inicio": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS"},
+                    "fecha_fin": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS", "nullable": True},
                     "duracion_minutos": {"type": "NUMBER"},
                     "motivo": {"type": "STRING", "nullable": True},
                     "solucion": {"type": "STRING", "nullable": True},
@@ -909,6 +922,7 @@ def registrar_incidente_ia(
         categoria_id=categoria_id,
         producto_id=producto_id,
         fecha_inicio=datos.fecha_inicio,
+        fecha_fin=datos.fecha_fin,
         duracion_minutos=datos.duracion_minutos,
         motivo=datos.motivo,
         solucion=datos.solucion,

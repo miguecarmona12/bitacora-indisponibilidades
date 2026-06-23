@@ -88,6 +88,7 @@ class IncidenteBase(BaseModel):
     categoria_id: int | None = None
     producto_id: int | None = None
     fecha_inicio: datetime
+    fecha_fin: Optional[datetime] = None
     duracion_minutos: float
     motivo: str | None = None
     solucion: str | None = None
@@ -102,6 +103,8 @@ class IncidenteUpdate(BaseModel):
     aplicacion_id: int | None = None
     categoria_id: int | None = None
     producto_id: int | None = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
     duracion_minutos: float | None = None
     motivo: str | None = None
     solucion: str | None = None
@@ -195,6 +198,7 @@ class IncidenteExtraidoResponse(BaseModel):
     nueva_aplicacion_nombre: Optional[str] = None
     
     fecha_inicio: datetime
+    fecha_fin: Optional[datetime] = None
     duracion_minutos: float
     motivo: Optional[str] = None
     solucion: Optional[str] = None
