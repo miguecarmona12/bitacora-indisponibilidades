@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import AIChatWidget from './components/AIChatWidget';
 import Dashboard from './pages/Dashboard';
 import Bitacora from './pages/Bitacora';
 import Configuracion from './pages/Configuracion';
@@ -8,6 +9,7 @@ import Login from './pages/Login';
 import Usuarios from './pages/Usuarios';
 import ForceChangePassword from './pages/ForceChangePassword';
 import { authService } from './services/api';
+
 
 const PrivateRoute = ({ children, requireRole = null }) => {
   const user = authService.getCurrentUser();
@@ -47,6 +49,7 @@ function App() {
             <Route path="/configuracion" element={<PrivateRoute requireRole="admin"><Configuracion /></PrivateRoute>} />
             <Route path="/usuarios" element={<PrivateRoute requireRole="admin"><Usuarios /></PrivateRoute>} />
           </Routes>
+          <AIChatWidget />
         </main>
       </div>
     </Router>

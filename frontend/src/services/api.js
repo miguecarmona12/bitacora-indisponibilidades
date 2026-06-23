@@ -189,6 +189,20 @@ export const bitacoraService = {
     const response = await api.delete(`/incidentes/${id}`);
     return response.data;
   },
+  
+  // AI Agent services
+  enviarChatIA: async (messages) => {
+    const response = await api.post('/api/ai/chat', { messages });
+    return response.data;
+  },
+  analizarConIA: async (prompt) => {
+    const response = await api.post('/api/ai/analizar', { prompt });
+    return response.data;
+  },
+  registrarConIA: async (datosIncidente) => {
+    const response = await api.post('/api/ai/registrar', datosIncidente);
+    return response.data;
+  },
 };
 
-export default api;
+export default api;

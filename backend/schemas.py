@@ -93,6 +93,8 @@ class IncidenteBase(BaseModel):
     solucion: str | None = None
     ticket: str | None = None
     mes_reporte: str
+    tipo_afectacion: Optional[str] = None
+    origen_afectacion: Optional[str] = None
 
 
 class IncidenteUpdate(BaseModel):
@@ -104,6 +106,8 @@ class IncidenteUpdate(BaseModel):
     motivo: str | None = None
     solucion: str | None = None
     ticket: str | None = None
+    tipo_afectacion: Optional[str] = None
+    origen_afectacion: Optional[str] = None
 
 
 class UsuarioBase(BaseModel):
@@ -171,3 +175,46 @@ class ChangePasswordRequest(BaseModel):
     username: str
     old_password: str
     new_password: str
+
+
+# --- AI ENDPOINTS SCHEMAS ---
+
+class AIPromptRequest(BaseModel):
+    prompt: str
+
+
+class IncidenteExtraidoResponse(BaseModel):
+    empresa_id: Optional[int] = None
+    aplicacion_id: Optional[int] = None
+    categoria_id: Optional[int] = None
+    producto_id: Optional[int] = None
+    
+    # Entidades nuevas a crear si no existen en la BD
+    nuevo_producto_nombre: Optional[str] = None
+    nueva_categoria_nombre: Optional[str] = None
+    nueva_aplicacion_nombre: Optional[str] = None
+    
+    fecha_inicio: datetime
+    duracion_minutos: float
+    motivo: Optional[str] = None
+    solucion: Optional[str] = None
+    ticket: Optional[str] = None
+    mes_reporte: str
+    tipo_afectacion: Optional[str] = None
+    origen_afectacion: Optional[str] = None
+
+
+class AIChatMessage(BaseModel):
+    role: str  # 'user' o 'model'
+    content: str
+
+
+class AIChatRequest(BaseModel):
+    messages: List[AIChatMessage]
+
+
+class AIChatResponse(BaseModel):
+    response: str
+    incident_detected: bool  # Indica si se detectó una intención de reportar indisponibilidad
+    extracted_data: Optional[IncidenteExtraidoResponse] = None
+
