@@ -268,6 +268,16 @@ const AIChatWidget = () => {
                           })}
                         </span>
                       </div>
+                      {msg.extracted_data.fecha_fin && (
+                        <div>
+                          <span className="font-semibold text-gray-400 mr-1">Fecha de Fin:</span> 
+                          <span className="text-gray-900 font-semibold">
+                            {new Date(msg.extracted_data.fecha_fin).toLocaleString('es-ES', { 
+                              day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+                            })}
+                          </span>
+                        </div>
+                      )}
                       <div>
                         <span className="font-semibold text-gray-400 mr-1">Duración:</span> 
                         <span className="text-gray-900 font-bold">{msg.extracted_data.duracion_minutos} minutos</span>

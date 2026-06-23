@@ -73,6 +73,7 @@ class Incidente(Base):
     producto_id = Column(Integer, ForeignKey("productos.id"), nullable=True)
     
     fecha_inicio = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_fin = Column(DateTime, nullable=True)
     duracion_minutos = Column(Float, nullable=False) # Duración de la caída
     motivo = Column(Text, nullable=True) # Razón o comentario adicional de la caída
     solucion = Column(Text, nullable=True) # Solución o acciones frente a la novedad

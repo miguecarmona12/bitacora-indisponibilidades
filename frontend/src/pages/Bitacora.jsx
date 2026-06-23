@@ -201,13 +201,21 @@ const Bitacora = () => {
   const [editFormData,     setEditFormData]      = useState({});
   const [submitting,       setSubmitting]        = useState(false);
   const [successFlash,     setSuccessFlash]      = useState(false);
+  const [productSearch,    setProductSearch]     = useState('');
+
+  const [filterEmpresa,    setFilterEmpresa]     = useState('');
+  const [filterAplicacion, setFilterAplicacion]  = useState('');
+  const [filterProducto,   setFilterProducto]    = useState('');
+  const [filterTipo,       setFilterTipo]        = useState('');
+  const [filterOrigen,     setFilterOrigen]      = useState('');
 
   const itemsPerPage = 15;
 
   const [formData, setFormData] = useState({
     empresa_ids: [], aplicacion_ids: [], categoria_ids: [], producto_ids: [],
     fecha_inicio:     new Date().toISOString().slice(0, 16),
-    duracion_minutos: '',
+    fecha_fin:        new Date().toISOString().slice(0, 16),
+    duracion_minutos: '0.0',
     motivo: '', solucion: '', ticket: '',
     tipo_afectacion: 'Caída Total',
     origen_afectacion: 'Aliado / Tercero',
@@ -229,6 +237,37 @@ const Bitacora = () => {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Recalcular duración para la creación
+  useEffect(() => {
+    if (formData.fecha_inicio && formData.fecha_fin) {
+      const inicio = new Date(formData.fecha_inicio);
+      const fin = new Date(formData.fecha_fin);
+      if (!isNaN(inicio.getTime()) && !isNaN(fin.getTime())) {
+        const diffMs = fin - inicio;
+        const diffMins = diffMs >= 0 ? (diffMs / 60000).toFixed(1) : '0.0';
+        setFormData(prev => (prev.duracion_minutos !== diffMins ? { ...prev, duracion_minutos: diffMins } : prev));
+      }
+    }
+  }, [formData.fecha_inicio, formData.fecha_fin]);
+
+  // Recalcular duración para la edición
+  useEffect(() => {
+    if (editFormData.fecha_inicio && editFormData.fecha_fin) {
+      const inicio = new Date(editFormData.fecha_inicio);
+      const fin = new Date(editFormData.fecha_fin);
+      if (!isNaN(inicio.getTime()) && !isNaN(fin.getTime())) {
+        const diffMs = fin - inicio;
+        const diffMins = diffMs >= 0 ? (diffMs / 60000).toFixed(1) : '0.0';
+        setEditFormData(prev => (prev.duracion_minutos !== diffMins ? { ...prev, duracion_minutos: diffMins } : prev));
+      }
+    }
+  }, [editFormData.fecha_inicio, editFormData.fecha_fin]);
+
+  // Resetear página al filtrar
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterEmpresa, filterAplicacion, filterProducto, filterTipo, filterOrigen]);
 
   /* ── Submit nuevo ──────────────────────────────────────────────────────── */
   const handleSubmit = async (e) => {
@@ -269,6 +308,7 @@ const Bitacora = () => {
             categoria_id: c.catId, producto_id: c.prodId,
             duracion_minutos: parseFloat(formData.duracion_minutos),
             fecha_inicio: new Date(formData.fecha_inicio).toISOString(),
+            fecha_fin: formData.fecha_fin ? new Date(formData.fecha_fin).toISOString() : null,
             motivo: formData.motivo, solucion: formData.solucion,
             ticket: formData.ticket, mes_reporte: formData.mes_reporte,
             tipo_afectacion: formData.tipo_afectacion,
@@ -280,6 +320,7 @@ const Bitacora = () => {
       setSuccessFlash(true);
       setTimeout(() => setSuccessFlash(false), 2400);
       setFormData(f => ({ ...f, duracion_minutos: '', motivo: '', solucion: '', ticket: '' }));
+      setProductSearch('');
       setCurrentPage(1);
       fetchData();
     } catch { alert('Error al registrar incidencia.'); }
@@ -295,6 +336,8 @@ const Bitacora = () => {
         aplicacion_id:    editFormData.aplicacion_id ? parseInt(editFormData.aplicacion_id) : null,
         categoria_id:     editFormData.categoria_id  ? parseInt(editFormData.categoria_id)  : null,
         producto_id:      editFormData.producto_id   ? parseInt(editFormData.producto_id)   : null,
+        fecha_inicio:     editFormData.fecha_inicio  ? new Date(editFormData.fecha_inicio).toISOString() : null,
+        fecha_fin:        editFormData.fecha_fin     ? new Date(editFormData.fecha_fin).toISOString() : null,
         duracion_minutos: parseFloat(editFormData.duracion_minutos),
         motivo: editFormData.motivo, solucion: editFormData.solucion, ticket: editFormData.ticket,
         tipo_afectacion: editFormData.tipo_afectacion,
@@ -337,7 +380,10 @@ const Bitacora = () => {
     if (!a.empresas?.length) return true;
     return formData.empresa_ids.some(id => a.empresas.map(e => e.id).includes(id));
   });
-  const productosFiltrados = productos.filter(p => formData.categoria_ids.includes(p.categoria_id));
+  const productosFiltrados = productos.filter(p => 
+    formData.categoria_ids.includes(p.categoria_id) &&
+    (productSearch.trim() === '' || p.nombre.toLowerCase().includes(productSearch.toLowerCase()))
+  );
 
   /* ── Checkbox Group renderer ───────────────────────────────────────────── */
   const renderCheckboxGroup = (step, title, items, field) => {
@@ -360,9 +406,35 @@ const Bitacora = () => {
             </button>
           </span>
         </div>
+        {field === 'producto_ids' && (
+          <div className="mb-2 relative">
+            <input
+              type="text"
+              placeholder="🔍 Buscar producto..."
+              value={productSearch}
+              onChange={e => setProductSearch(e.target.value)}
+              className="bita-input w-full pl-7 pr-7 py-1.5 rounded-lg border border-gray-200 text-xs font-medium"
+            />
+            {productSearch && (
+              <button
+                type="button"
+                onClick={() => setProductSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 font-extrabold text-sm"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-1.5 max-h-[110px] overflow-y-auto bita-scroll pr-0.5">
           {items.length === 0
-            ? <span className="col-span-2 text-[10px] text-gray-400 italic py-1">Sin elementos disponibles</span>
+            ? (
+                <span className="col-span-2 text-[10px] text-gray-400 italic py-1 px-1">
+                  {field === 'producto_ids' && productSearch.trim() !== '' 
+                    ? 'No se encontraron coincidencias' 
+                    : 'Sin elementos disponibles'}
+                </span>
+              )
             : items.map(item => {
                 const on = formData[field].includes(item.id);
                 return (
@@ -381,7 +453,16 @@ const Bitacora = () => {
   };
 
   /* ── Paginación ────────────────────────────────────────────────────────── */
-  const sorted  = [...incidentes].sort((a, b) => new Date(b.fecha_inicio) - new Date(a.fecha_inicio));
+  const filteredIncidentes = incidentes.filter(inc => {
+    if (filterEmpresa && inc.empresa_id !== parseInt(filterEmpresa)) return false;
+    if (filterAplicacion && inc.aplicacion_id !== parseInt(filterAplicacion)) return false;
+    if (filterProducto && inc.producto_id !== parseInt(filterProducto)) return false;
+    if (filterTipo && inc.tipo_afectacion !== filterTipo) return false;
+    if (filterOrigen && inc.origen_afectacion !== filterOrigen) return false;
+    return true;
+  });
+
+  const sorted  = [...filteredIncidentes].sort((a, b) => new Date(b.fecha_inicio) - new Date(a.fecha_inicio));
   const total   = Math.ceil(sorted.length / itemsPerPage) || 1;
   const current = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -475,10 +556,10 @@ const Bitacora = () => {
                   {renderCheckboxGroup(4, 'Producto',         productosFiltrados,   'producto_ids')}
                 </div>
 
-                {/* Fecha */}
+                {/* Fecha Inicio */}
                 <div>
                   <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                    <Calendar size={12} className="text-violet-500" /> Fecha y Hora de Caída
+                    <Calendar size={12} className="text-violet-500" /> Fecha y Hora de Caída (Inicio)
                   </label>
                   <input type="datetime-local"
                     className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
@@ -486,15 +567,25 @@ const Bitacora = () => {
                     onChange={e => setFormData(f => ({ ...f, fecha_inicio: e.target.value }))} />
                 </div>
 
+                {/* Fecha Fin */}
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    <Calendar size={12} className="text-fuchsia-500" /> Fecha y Hora de Restablecimiento (Fin)
+                  </label>
+                  <input type="datetime-local"
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={formData.fecha_fin}
+                    onChange={e => setFormData(f => ({ ...f, fecha_fin: e.target.value }))} />
+                </div>
+
                 {/* Duración */}
                 <div>
                   <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                    <Clock size={12} className="text-red-500" /> Duración (minutos) *
+                    <Clock size={12} className="text-red-500" /> Duración calculada (minutos)
                   </label>
-                  <input type="number" step="0.1" placeholder="Ej: 15.5" required
-                    className="bita-input bita-mono w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
-                    value={formData.duracion_minutos}
-                    onChange={e => setFormData(f => ({ ...f, duracion_minutos: e.target.value }))} />
+                  <input type="text" readOnly placeholder="Se calculará automáticamente"
+                    className="bita-input bita-mono w-full px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50 text-sm text-gray-400 cursor-default font-semibold"
+                    value={formData.duracion_minutos} />
                 </div>
 
                 {/* Motivo */}
@@ -591,9 +682,95 @@ const Bitacora = () => {
                   <h2 className="text-lg font-bold text-gray-900">Historial de Incidentes</h2>
                   <p className="text-xs text-gray-400 mt-0.5">Ordenado por fecha, más reciente primero</p>
                 </div>
-                <span className="bita-badge bg-violet-100 text-violet-700 border border-violet-200">
-                  {incidentes.length} registros
-                </span>
+                <div className="flex items-center gap-3">
+                  {(filterEmpresa || filterAplicacion || filterProducto || filterTipo || filterOrigen) && (
+                    <button
+                      onClick={() => {
+                        setFilterEmpresa('');
+                        setFilterAplicacion('');
+                        setFilterProducto('');
+                        setFilterTipo('');
+                        setFilterOrigen('');
+                      }}
+                      className="text-xs text-violet-600 hover:text-violet-800 font-semibold underline underline-offset-2 bg-transparent border-none cursor-pointer"
+                    >
+                      Limpiar Filtros
+                    </button>
+                  )}
+                  <span className="bita-badge bg-violet-100 text-violet-700 border border-violet-200">
+                    {filteredIncidentes.length} de {incidentes.length} registros
+                  </span>
+                </div>
+              </div>
+
+              {/* Filtros */}
+              <div className="px-6 py-4 bg-violet-50/20 border-b border-violet-100/40 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {/* Filtro Empresa */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Empresa / Red</label>
+                  <select
+                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterEmpresa}
+                    onChange={e => setFilterEmpresa(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                  </select>
+                </div>
+
+                {/* Filtro Aplicación */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Aplicación</label>
+                  <select
+                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterAplicacion}
+                    onChange={e => setFilterAplicacion(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    {aplicaciones.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+                  </select>
+                </div>
+
+                {/* Filtro Producto */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Producto</label>
+                  <select
+                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterProducto}
+                    onChange={e => setFilterProducto(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                </div>
+
+                {/* Filtro Tipo Afectación */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Afectación</label>
+                  <select
+                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterTipo}
+                    onChange={e => setFilterTipo(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    <option value="Caída Total">Caída Total</option>
+                    <option value="Intermitencia">Intermitencia</option>
+                  </select>
+                </div>
+
+                {/* Filtro Origen Afectación */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Origen</label>
+                  <select
+                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterOrigen}
+                    onChange={e => setFilterOrigen(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    <option value="Aliado / Tercero">Aliado / Tercero</option>
+                    <option value="Interna">Interna</option>
+                  </select>
+                </div>
               </div>
 
               {/* Tabla */}
@@ -613,7 +790,9 @@ const Bitacora = () => {
                       ? (
                         <tr>
                           <td colSpan={5} className="py-16 text-center text-gray-400 text-sm italic">
-                            No hay incidentes registrados aún.
+                            {filterEmpresa || filterAplicacion || filterProducto || filterTipo || filterOrigen
+                              ? 'No se encontraron incidentes con los filtros seleccionados.'
+                              : 'No hay incidentes registrados aún.'}
                           </td>
                         </tr>
                       )
@@ -624,11 +803,18 @@ const Bitacora = () => {
 
                               {/* Fecha / Ticket */}
                               <td className="px-5 py-4 align-top">
-                                <p className="bita-mono text-xs font-semibold text-gray-700 whitespace-nowrap">
-                                  {new Date(inc.fecha_inicio).toLocaleString('es-ES', {
+                                <p className="bita-mono text-[11px] font-bold text-gray-700 whitespace-nowrap">
+                                  Ini: {new Date(inc.fecha_inicio).toLocaleString('es-ES', {
                                     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
                                   })}
                                 </p>
+                                {inc.fecha_fin && (
+                                  <p className="bita-mono text-[11px] font-bold text-gray-500 whitespace-nowrap mt-0.5">
+                                    Fin: {new Date(inc.fecha_fin).toLocaleString('es-ES', {
+                                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                    })}
+                                  </p>
+                                )}
                                 {inc.ticket && (
                                   <div className="mt-1.5">
                                     <span className="bita-ticket"><Hash size={9} />{inc.ticket}</span>
@@ -702,6 +888,8 @@ const Bitacora = () => {
                                         setEditFormData({
                                           empresa_id: inc.empresa_id || '', aplicacion_id: inc.aplicacion_id || '',
                                           categoria_id: inc.categoria_id || '', producto_id: inc.producto_id || '',
+                                          fecha_inicio: inc.fecha_inicio ? new Date(new Date(inc.fecha_inicio).getTime() - new Date(inc.fecha_inicio).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+                                          fecha_fin: inc.fecha_fin ? new Date(new Date(inc.fecha_fin).getTime() - new Date(inc.fecha_fin).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
                                           duracion_minutos: inc.duracion_minutos,
                                           motivo: inc.motivo || '', solucion: inc.solucion || '', ticket: inc.ticket || '',
                                           tipo_afectacion: inc.tipo_afectacion || 'Caída Total',
@@ -817,11 +1005,26 @@ const Bitacora = () => {
                 ))}
 
                 <div>
-                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Inactividad (min) *</label>
-                  <input type="number" step="0.1" required
-                    className="bita-input bita-mono w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold"
-                    value={editFormData.duracion_minutos}
-                    onChange={e => setEditFormData(f => ({ ...f, duracion_minutos: e.target.value }))} />
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Fecha Inicio</label>
+                  <input type="datetime-local"
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={editFormData.fecha_inicio}
+                    onChange={e => setEditFormData(f => ({ ...f, fecha_inicio: e.target.value }))} />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Fecha Fin</label>
+                  <input type="datetime-local"
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={editFormData.fecha_fin}
+                    onChange={e => setEditFormData(f => ({ ...f, fecha_fin: e.target.value }))} />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Duración (min) *</label>
+                  <input type="text" readOnly
+                    className="bita-input bita-mono w-full px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50 text-sm text-gray-500 cursor-default font-semibold"
+                    value={editFormData.duracion_minutos} />
                 </div>
 
                 <div>
