@@ -33,6 +33,11 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/bitacora
       RESET_ADMIN_PASSWORD: ${RESET_ADMIN_PASSWORD:-false}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      AI_API_KEY: ${AI_API_KEY}
+      AI_BASE_URL: ${AI_BASE_URL}
+      AI_MODEL: ${AI_MODEL:-gpt-3.5-turbo}
       FRONTEND_URL: https://bita.ux.local,http://localhost:5173
     volumes:
       - ./backend:/app
