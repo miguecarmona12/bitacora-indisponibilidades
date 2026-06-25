@@ -930,7 +930,8 @@ def chat_asesor_ia(
         else:
             messages = [{"role": "system", "content": system_instruction}]
             for msg in chat_req.messages:
-                messages.append({"role": msg.role, "content": msg.content})
+                role = "assistant" if msg.role == "model" else msg.role
+                messages.append({"role": role, "content": msg.content})
             
             body = {
                 "model": model_name,
