@@ -15,9 +15,9 @@ const SessionTimeout = () => {
 
     const resetTimer = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
+      timerRef.current = setTimeout(async () => {
         toast.warning('Sesión expirada por inactividad');
-        authService.logout();
+        await authService.logout();
         navigate('/login');
       }, TIMEOUT);
     };
