@@ -118,6 +118,57 @@ def create_default_admin():
     finally:
         db.close()
 
+
+def get_ai_settings():
+    provider = os.getenv("AI_PROVIDER", "gemini").strip().lower()
+    api_key = os.getenv("AI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    base_url = os.getenv("AI_BASE_URL")
+    model = os.getenv("AI_MODEL")
+    return provider, api_key, base_url, model
+
+
+def openai_request(path: str, body: dict, api_key: str, base_url: str):
+    if not base_url:
+        raise RuntimeError("AI_BASE_URL no configurado en el backend")
+    url = urllib.parse.urljoin(base_url if base_url.endswith("/") else base_url + "/", path.lstrip("/"))
+    data = json.dumps(body).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as e:
+        content = e.read().decode("utf-8") if e.fp else ""
+        raise RuntimeError(f"OpenAI request failed {e.code}: {content}")
+    except URLError as e:
+        raise RuntimeError(f"OpenAI request failed: {e.reason}")
+
+
+def ensure_ai_config():
+    provider, api_key, base_url, model = get_ai_settings()
+    if provider == "gemini":
+        if not api_key:
+            raise HTTPException(status_code=500, detail="GEMINI_API_KEY no configurado en el backend")
+        genai.configure(api_key=api_key)
+        return provider, model or "gemini-2.5-flash"
+
+    if provider in ["openai", "modelarts", "openai-compatible"]:
+        if not api_key:
+            raise HTTPException(status_code=500, detail="AI_API_KEY no configurado en el backend")
+        if not base_url:
+            raise HTTPException(status_code=500, detail="AI_BASE_URL no configurado en el backend")
+        return provider, model or "gpt-3.5-turbo"
+
+    raise HTTPException(status_code=500, detail=f"AI_PROVIDER desconocido: {provider}")
+
+
 # ==============================
 # APP
 # ==============================
