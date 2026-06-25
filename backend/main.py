@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, get_db, SessionLocal
@@ -14,6 +14,9 @@ import os
 import sys
 from loguru import logger
 import json
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import urllib.parse
 import urllib.request
 from urllib.error import HTTPError, URLError
@@ -175,6 +178,10 @@ def ensure_ai_config():
 # ==============================
 app = FastAPI(title="Bitácora API", docs_url=None, redoc_url=None, openapi_url=None)
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # ==============================
 # CORS - MUST be first middleware
 # ==============================
@@ -210,11 +217,21 @@ def startup_event():
 def root():
     return {"ok": True}
 
+@app.get("/health")
+def health(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
+
 # ==============================
 # LOGIN
 # ==============================
 @app.post("/token", response_model=schemas.Token)
+@limiter.limit("10/minute")
 def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -248,6 +265,28 @@ def login(
         "empresa_id": user.empresa_id,
         "must_change_password": user.must_change_password
     }
+
+@app.post("/refresh")
+def refresh_token(
+    request: Request,
+    token: str = Depends(auth.oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    try:
+        payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Token inválido")
+        user = db.query(models.Usuario).filter(models.Usuario.username == username).first()
+        if user is None:
+            raise HTTPException(status_code=401, detail="Usuario no encontrado")
+        new_token = auth.create_access_token(
+            data={"sub": user.username, "rol": user.rol},
+            expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return {"access_token": new_token, "token_type": "bearer"}
+    except auth.JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
 
 @app.post("/logout")
 def logout(

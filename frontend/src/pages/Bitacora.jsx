@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { bitacoraService, authService } from '../services/api';
 import {
-  Calendar, Clock, FileText, AlertTriangle,
+  Calendar, Clock, FileText, AlertTriangle, AlertCircle,
   ChevronLeft, ChevronRight, Pencil, Trash2, X,
   Plus, Zap, CheckCircle2, Hash
 } from 'lucide-react';
@@ -211,6 +211,8 @@ const Bitacora = () => {
   const [editingIncidente, setEditingIncidente]  = useState(null);
   const [editFormData,     setEditFormData]      = useState({});
   const [submitting,       setSubmitting]        = useState(false);
+  const [loading,          setLoading]           = useState(true);
+  const [error,            setError]             = useState(null);
   const [successFlash,     setSuccessFlash]      = useState(false);
   const [productSearch,    setProductSearch]     = useState('');
 
@@ -235,6 +237,7 @@ const Bitacora = () => {
 
   /* ── Fetch ─────────────────────────────────────────────────────────────── */
   const fetchData = async () => {
+    setLoading(true); setError(null);
     try {
       const [i, p, c, a, e] = await Promise.all([
         bitacoraService.getIncidentes(),
@@ -244,7 +247,8 @@ const Bitacora = () => {
         bitacoraService.getEmpresas(),
       ]);
       setIncidentes(i); setProductos(p); setCategorias(c); setAplicaciones(a); setEmpresas(e);
-    } catch (err) { console.error(err); }
+    } catch (err) { setError(err.response?.data?.detail || 'Error al cargar datos'); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -498,6 +502,25 @@ const Bitacora = () => {
 
       <div className="max-w-7xl mx-auto">
 
+        {error && (
+          <div style={{ padding: 20, textAlign: 'center', marginBottom: 20 }}>
+            <AlertCircle size={28} style={{ color: 'var(--red)', marginBottom: 8 }} />
+            <p style={{ fontWeight: 700, color: 'var(--text-1)', marginBottom: 4 }}>Error al cargar</p>
+            <p style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 12 }}>{error}</p>
+            <button onClick={fetchData} style={{ padding: '8px 20px', background: 'var(--violet)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-32">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--violet)' }} />
+              <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>Cargando...</span>
+            </div>
+          </div>
+        ) : (<>
         {/* ── Encabezado ─────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
           <div>
@@ -957,6 +980,7 @@ const Bitacora = () => {
             </div>
           </section>
         </div>
+      </>)}
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════

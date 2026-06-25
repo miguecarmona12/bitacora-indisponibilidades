@@ -484,6 +484,7 @@ const Dashboard = () => {
   const [categorias,   setCategorias]   = useState([]);
   const [productos,    setProductos]    = useState([]);
   const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
   const [filtroOpen,   setFiltroOpen]   = useState(false);
 
   const currentUser   = authService.getCurrentUser();
@@ -510,7 +511,7 @@ const Dashboard = () => {
           bitacoraService.getProductos(),
         ]);
         setIncidentes(i); setEmpresas(e); setAplicaciones(a); setCategorias(c); setProductos(p);
-      } catch (err) { console.error(err); }
+      } catch (err) { setError(err.response?.data?.detail || 'Error al cargar datos'); }
       finally { setLoading(false); }
     })();
   }, []);
@@ -669,7 +670,16 @@ const Dashboard = () => {
           </div>
         )}
 
-        {loading ? (
+        {error ? (
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <AlertCircle size={32} style={{ color: 'var(--red)', marginBottom: 12 }} />
+            <p style={{ fontWeight: 700, color: 'var(--text-1)', marginBottom: 4 }}>Error al cargar</p>
+            <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{error}</p>
+            <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: '8px 20px', background: 'var(--violet)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+              Reintentar
+            </button>
+          </div>
+        ) : loading ? (
           <div className="d-loading">
             <div className="d-spinner" />
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--text-3)' }}>
