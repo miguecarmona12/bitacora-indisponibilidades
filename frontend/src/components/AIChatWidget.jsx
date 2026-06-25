@@ -87,9 +87,10 @@ const AIChatWidget = () => {
       }]);
     } catch (err) {
       console.error(err);
+      const errorDetail = err.response?.data?.detail || err.message || 'Error desconocido';
       setMessages(prev => [...prev, {
         role: 'model',
-        content: "⚠️ Lo siento, ocurrió un error al comunicarme con el servidor. Por favor, asegúrate de que el backend esté ejecutándose y que tengas configurada la variable `GEMINI_API_KEY`."
+        content: `⚠️ Error: ${errorDetail}`
       }]);
     } finally {
       setIsLoading(false);
