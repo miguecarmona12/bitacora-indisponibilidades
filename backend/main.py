@@ -13,6 +13,9 @@ import re
 import os
 import logging
 import json
+import urllib.parse
+import urllib.request
+from urllib.error import HTTPError, URLError
 import google.generativeai as genai
 
 # Configure logging
@@ -553,12 +556,9 @@ def analizar_incidente_ia(
     # Restricción: Si el usuario es técnico y está asignado a una empresa, forzar esa empresa
     empresa_fijada_id = current_user.empresa_id if current_user.rol == "tecnico" else None
     
-    # 2. Configurar Gemini
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY no configurado en el backend")
-    
-    genai.configure(api_key=api_key)
+    # 2. Configurar proveedor de IA
+    provider, api_key, base_url, model_name = get_ai_settings()
+    provider, model_name = ensure_ai_config()
     
     fecha_actual_iso = datetime.now().isoformat()
     
@@ -608,44 +608,79 @@ def analizar_incidente_ia(
         - Si la falla fue causada por un proveedor externo, aliado, operador móvil, corte de fibra externo o vencimiento de certificados del proveedor, pon "Aliado / Tercero".
         - Si la falla fue interna, por ejemplo el servidor de la empresa se llenó de memoria, base de datos bloqueada, errores de código propios o mantenimiento interno, pon "Interna".
         - Por defecto, si no es claro quién la causó, pon "Aliado / Tercero".
+        
+    Responde ÚNICAMENTE con un objeto JSON válido con esta estructura:
+    {{
+      "empresa_id": integer o null,
+      "aplicacion_id": integer o null,
+      "categoria_id": integer o null,
+      "producto_id": integer o null,
+      "nuevo_producto_nombre": string o null,
+      "nueva_categoria_nombre": string o null,
+      "nueva_aplicacion_nombre": string o null,
+      "fecha_inicio": "YYYY-MM-DDTHH:MM:SS",
+      "fecha_fin": "YYYY-MM-DDTHH:MM:SS" o null,
+      "duracion_minutos": number,
+      "motivo": string o null,
+      "solucion": string o null,
+      "ticket": string o null,
+      "mes_reporte": "NombreMes Año",
+      "tipo_afectacion": "Caída Total" | "Intermitencia" | null,
+      "origen_afectacion": "Aliado / Tercero" | "Interna" | null
+    }}
     """
     
-    # Inicializar el modelo con el system_instruction correcto
-    model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=system_instruction)
-    
-    # Esquema en formato diccionario compatible
-    raw_schema = {
-        "type": "OBJECT",
-        "properties": {
-            "empresa_id": {"type": "INTEGER", "nullable": True},
-            "aplicacion_id": {"type": "INTEGER", "nullable": True},
-            "categoria_id": {"type": "INTEGER", "nullable": True},
-            "producto_id": {"type": "INTEGER", "nullable": True},
-            "nuevo_producto_nombre": {"type": "STRING", "nullable": True},
-            "nueva_categoria_nombre": {"type": "STRING", "nullable": True},
-            "nueva_aplicacion_nombre": {"type": "STRING", "nullable": True},
-            "fecha_inicio": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS"},
-            "fecha_fin": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS", "nullable": True},
-            "duracion_minutos": {"type": "NUMBER"},
-            "motivo": {"type": "STRING", "nullable": True},
-            "solucion": {"type": "STRING", "nullable": True},
-            "ticket": {"type": "STRING", "nullable": True},
-            "mes_reporte": {"type": "STRING"},
-            "tipo_afectacion": {"type": "STRING", "enum": ["Caída Total", "Intermitencia"], "nullable": True},
-            "origen_afectacion": {"type": "STRING", "enum": ["Aliado / Tercero", "Interna"], "nullable": True}
-        },
-        "required": ["fecha_inicio", "duracion_minutos", "mes_reporte"]
-    }
-    
     try:
-        response = model.generate_content(
-            f"Analiza e identifica los datos de indisponibilidad en el siguiente reporte: '{datos.prompt}'",
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                response_schema=raw_schema
+        if provider == "gemini":
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name, system_instruction=system_instruction)
+            
+            raw_schema = {
+                "type": "OBJECT",
+                "properties": {
+                    "empresa_id": {"type": "INTEGER", "nullable": True},
+                    "aplicacion_id": {"type": "INTEGER", "nullable": True},
+                    "categoria_id": {"type": "INTEGER", "nullable": True},
+                    "producto_id": {"type": "INTEGER", "nullable": True},
+                    "nuevo_producto_nombre": {"type": "STRING", "nullable": True},
+                    "nueva_categoria_nombre": {"type": "STRING", "nullable": True},
+                    "nueva_aplicacion_nombre": {"type": "STRING", "nullable": True},
+                    "fecha_inicio": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS"},
+                    "fecha_fin": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS", "nullable": True},
+                    "duracion_minutos": {"type": "NUMBER"},
+                    "motivo": {"type": "STRING", "nullable": True},
+                    "solucion": {"type": "STRING", "nullable": True},
+                    "ticket": {"type": "STRING", "nullable": True},
+                    "mes_reporte": {"type": "STRING"},
+                    "tipo_afectacion": {"type": "STRING", "enum": ["Caída Total", "Intermitencia"], "nullable": True},
+                    "origen_afectacion": {"type": "STRING", "enum": ["Aliado / Tercero", "Interna"], "nullable": True}
+                },
+                "required": ["fecha_inicio", "duracion_minutos", "mes_reporte"]
+            }
+            
+            response = model.generate_content(
+                f"Analiza e identifica los datos de indisponibilidad en el siguiente reporte: '{datos.prompt}'",
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=raw_schema
+                )
             )
-        )
-        parsed_data = json.loads(response.text)
+            parsed_data = json.loads(response.text)
+        else:
+            messages = [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Analiza e identifica los datos de indisponibilidad en el siguiente reporte: '{datos.prompt}'"}
+            ]
+            body = {
+                "model": model_name,
+                "messages": messages,
+                "response_format": {"type": "json_object"},
+                "temperature": 0.1,
+                "max_tokens": 2000
+            }
+            result = openai_request("chat/completions", body, api_key, base_url)
+            content = result["choices"][0]["message"]["content"]
+            parsed_data = json.loads(content)
         
         # Validación extra: si el técnico tiene empresa_id, forzarlo
         if empresa_fijada_id:
@@ -692,12 +727,9 @@ def chat_asesor_ia(
             f"Producto: {prod} | Motivo: {inc.motivo or 'N/A'} | Solución: {inc.solucion or 'N/A'} | Duración: {inc.duracion_minutos} min\n"
         )
     
-    # 3. Configurar Gemini
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY no configurado en el backend")
-    
-    genai.configure(api_key=api_key)
+    # 3. Configurar proveedor de IA
+    provider, api_key, base_url, model_name = get_ai_settings()
+    provider, model_name = ensure_ai_config()
     
     fecha_actual_iso = datetime.now().isoformat()
     empresa_fijada_id = current_user.empresa_id if current_user.rol == "tecnico" else None
@@ -765,62 +797,100 @@ def chat_asesor_ia(
     - Convierte descripciones relativas de fecha/hora de inicio y fin (ej: "hace 30 minutos", "hoy a las 9:15am", "ayer en la noche") en fechas exactas en formato ISO 8601 (YYYY-MM-DDTHH:MM:SS) utilizando la fecha de referencia del servidor. Si no se puede inferir una fecha/hora de finalización (`fecha_fin`), calcúlala sumando `duracion_minutos` a la `fecha_inicio`.
     - Extrae la duración. Si se indica en horas (ej: "1.5 horas"), conviértela a minutos (ej: 90). El campo `duracion_minutos` es numérico.
     - Determina el mes y año del reporte en el campo `mes_reporte` en español con formato "NombreMes Año" (ej: "Mayo 2026"), basándote en la fecha del incidente.
+    
+    Responde ÚNICAMENTE con un objeto JSON válido con esta estructura:
+    {{
+      "response": "string (tu respuesta conversacional)",
+      "incident_detected": true o false,
+      "extracted_data": {{
+        "empresa_id": integer o null,
+        "aplicacion_id": integer o null,
+        "categoria_id": integer o null,
+        "producto_id": integer o null,
+        "nuevo_producto_nombre": string o null,
+        "nueva_categoria_nombre": string o null,
+        "nueva_aplicacion_nombre": string o null,
+        "fecha_inicio": "YYYY-MM-DDTHH:MM:SS",
+        "fecha_fin": "YYYY-MM-DDTHH:MM:SS" o null,
+        "duracion_minutos": number,
+        "motivo": string o null,
+        "solucion": string o null,
+        "ticket": string o null,
+        "mes_reporte": "NombreMes Año",
+        "tipo_afectacion": "Caída Total" | "Intermitencia" | null,
+        "origen_afectacion": "Aliado / Tercero" | "Interna" | null
+      }} o null
+    }}
     """
     
-    # Inicializar el modelo con el system_instruction correcto y gemini-2.5-flash
-    model = genai.GenerativeModel('gemini-2.5-flash', system_instruction=system_instruction)
-    
-    # 5. Formatear historial de mensajes para Gemini usando el formato de partes con diccionario {"text": ...}
-    contents = []
-    for msg in chat_req.messages[:-1]:
-        role = 'user' if msg.role == 'user' else 'model'
-        contents.append({"role": role, "parts": [{"text": msg.content}]})
-    
-    ultimo_mensaje = chat_req.messages[-1].content
-    contents.append({"role": "user", "parts": [{"text": ultimo_mensaje}]})
-    
-    # Esquema en formato diccionario compatible
-    raw_schema = {
-        "type": "OBJECT",
-        "properties": {
-            "response": {"type": "STRING", "description": "Respuesta conversacional al usuario."},
-            "incident_detected": {"type": "BOOLEAN", "description": "Si se detectó que el usuario reporta un incidente."},
-            "extracted_data": {
-                "type": "OBJECT",
-                "nullable": True,
-                "properties": {
-                    "empresa_id": {"type": "INTEGER", "nullable": True},
-                    "aplicacion_id": {"type": "INTEGER", "nullable": True},
-                    "categoria_id": {"type": "INTEGER", "nullable": True},
-                    "producto_id": {"type": "INTEGER", "nullable": True},
-                    "nuevo_producto_nombre": {"type": "STRING", "nullable": True},
-                    "nueva_categoria_nombre": {"type": "STRING", "nullable": True},
-                    "nueva_aplicacion_nombre": {"type": "STRING", "nullable": True},
-                    "fecha_inicio": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS"},
-                    "fecha_fin": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS", "nullable": True},
-                    "duracion_minutos": {"type": "NUMBER"},
-                    "motivo": {"type": "STRING", "nullable": True},
-                    "solucion": {"type": "STRING", "nullable": True},
-                    "ticket": {"type": "STRING", "nullable": True},
-                    "mes_reporte": {"type": "STRING"},
-                    "tipo_afectacion": {"type": "STRING", "enum": ["Caída Total", "Intermitencia"], "nullable": True},
-                    "origen_afectacion": {"type": "STRING", "enum": ["Aliado / Tercero", "Interna"], "nullable": True}
-                },
-                "required": ["fecha_inicio", "duracion_minutos", "mes_reporte"]
-            }
-        },
-        "required": ["response", "incident_detected"]
-    }
-    
     try:
-        response = model.generate_content(
-            contents,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                response_schema=raw_schema
+        if provider == "gemini":
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name, system_instruction=system_instruction)
+            
+            contents = []
+            for msg in chat_req.messages[:-1]:
+                role = 'user' if msg.role == 'user' else 'model'
+                contents.append({"role": role, "parts": [{"text": msg.content}]})
+            
+            ultimo_mensaje = chat_req.messages[-1].content
+            contents.append({"role": "user", "parts": [{"text": ultimo_mensaje}]})
+            
+            raw_schema = {
+                "type": "OBJECT",
+                "properties": {
+                    "response": {"type": "STRING", "description": "Respuesta conversacional al usuario."},
+                    "incident_detected": {"type": "BOOLEAN", "description": "Si se detectó que el usuario reporta un incidente."},
+                    "extracted_data": {
+                        "type": "OBJECT",
+                        "nullable": True,
+                        "properties": {
+                            "empresa_id": {"type": "INTEGER", "nullable": True},
+                            "aplicacion_id": {"type": "INTEGER", "nullable": True},
+                            "categoria_id": {"type": "INTEGER", "nullable": True},
+                            "producto_id": {"type": "INTEGER", "nullable": True},
+                            "nuevo_producto_nombre": {"type": "STRING", "nullable": True},
+                            "nueva_categoria_nombre": {"type": "STRING", "nullable": True},
+                            "nueva_aplicacion_nombre": {"type": "STRING", "nullable": True},
+                            "fecha_inicio": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS"},
+                            "fecha_fin": {"type": "STRING", "description": "ISO 8601 string format YYYY-MM-DDTHH:MM:SS", "nullable": True},
+                            "duracion_minutos": {"type": "NUMBER"},
+                            "motivo": {"type": "STRING", "nullable": True},
+                            "solucion": {"type": "STRING", "nullable": True},
+                            "ticket": {"type": "STRING", "nullable": True},
+                            "mes_reporte": {"type": "STRING"},
+                            "tipo_afectacion": {"type": "STRING", "enum": ["Caída Total", "Intermitencia"], "nullable": True},
+                            "origen_afectacion": {"type": "STRING", "enum": ["Aliado / Tercero", "Interna"], "nullable": True}
+                        },
+                        "required": ["fecha_inicio", "duracion_minutos", "mes_reporte"]
+                    }
+                },
+                "required": ["response", "incident_detected"]
+            }
+            
+            response = model.generate_content(
+                contents,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=raw_schema
+                )
             )
-        )
-        parsed_res = json.loads(response.text)
+            parsed_res = json.loads(response.text)
+        else:
+            messages = [{"role": "system", "content": system_instruction}]
+            for msg in chat_req.messages:
+                messages.append({"role": msg.role, "content": msg.content})
+            
+            body = {
+                "model": model_name,
+                "messages": messages,
+                "response_format": {"type": "json_object"},
+                "temperature": 0.1,
+                "max_tokens": 4000
+            }
+            result = openai_request("chat/completions", body, api_key, base_url)
+            content = result["choices"][0]["message"]["content"]
+            parsed_res = json.loads(content)
         
         # Forzar empresa_id del técnico
         if parsed_res.get("incident_detected") and parsed_res.get("extracted_data") and empresa_fijada_id:

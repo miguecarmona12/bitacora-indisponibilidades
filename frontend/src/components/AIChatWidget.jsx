@@ -165,10 +165,10 @@ const AIChatWidget = () => {
               </div>
               <div>
                 <h3 className="font-bold text-sm tracking-wide">Asesor GDO Inteligente</h3>
-                <span className="text-[10px] text-white/80 font-semibold uppercase tracking-widest flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
-                  Gemini AI Activo
-                </span>
+                  <span className="text-[10px] text-white/80 font-semibold uppercase tracking-widest flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
+                    IA Activo
+                  </span>
               </div>
             </div>
             <button 
