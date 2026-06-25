@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { bitacoraService, authService } from '../services/api';
 import {
   Users, UserPlus, Shield, User, Pencil, Trash2,
@@ -166,7 +167,7 @@ const ModalEditar = ({ open, usuario, empresas, onClose, onSaved }) => {
       onSaved();
       onClose();
     } catch {
-      alert('Error al actualizar el usuario.');
+      toast.error('Error al actualizar el usuario.');
     } finally {
       setSaving(false);
     }
@@ -343,7 +344,7 @@ const ModalEliminar = ({ open, usuario, onClose, onSaved }) => {
       onSaved();
       onClose();
     } catch {
-      alert('Error al eliminar el usuario.');
+      toast.error('Error al eliminar el usuario.');
     } finally {
       setDeleting(false);
     }
@@ -413,10 +414,10 @@ const Usuarios = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const pwd = formData.password;
-    if (pwd.length < 8) { alert('La contraseña debe tener al menos 8 caracteres.'); return; }
-    if (!/[A-Za-z]/.test(pwd)) { alert('La contraseña debe contener letras.'); return; }
-    if (!/[0-9]/.test(pwd)) { alert('La contraseña debe contener números.'); return; }
-    if (!/[!@#$%^&*(),.?\":{}|<>]/.test(pwd)) { alert('La contraseña debe contener caracteres especiales.'); return; }
+    if (pwd.length < 8) { toast.warning('La contraseña debe tener al menos 8 caracteres.'); return; }
+    if (!/[A-Za-z]/.test(pwd)) { toast.warning('La contraseña debe contener letras.'); return; }
+    if (!/[0-9]/.test(pwd)) { toast.warning('La contraseña debe contener números.'); return; }
+    if (!/[!@#$%^&*(),.?\":{}|<>]/.test(pwd)) { toast.warning('La contraseña debe contener caracteres especiales.'); return; }
     
     setCreating(true);
     try {
@@ -427,7 +428,7 @@ const Usuarios = () => {
       setTimeout(() => setFlash(false), 2400);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Error al crear usuario.');
+      toast.error(err.response?.data?.detail || 'Error al crear usuario.');
     }
     finally { setCreating(false); }
   };

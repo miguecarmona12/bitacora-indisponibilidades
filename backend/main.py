@@ -11,16 +11,17 @@ from datetime import timedelta, datetime
 from sqlalchemy import text
 import re
 import os
-import logging
+import sys
+from loguru import logger
 import json
 import urllib.parse
 import urllib.request
 from urllib.error import HTTPError, URLError
 import google.generativeai as genai
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger.remove()
+logger.add(sys.stdout, level="INFO", colorize=True)
+logger.add("logs/bitacora.log", rotation="10 MB", retention="30 days", level="DEBUG", encoding="utf-8", enqueue=True)
 
 # ==============================
 # CREAR TABLAS
@@ -44,7 +45,7 @@ try:
         """))
         conn.commit()
 except Exception as e:
-    print("Migration check:", e)
+    logger.warning(f"Migration check: {e}")
 
 try:
     with engine.begin() as conn:
@@ -102,19 +103,19 @@ def create_default_admin():
             )
             db.add(nuevo_admin)
             db.commit()
-            print(f"Admin creado con contraseña: {default_password}")
+            logger.info(f"Admin creado con contraseña: {default_password}")
         else:
             # Resetear contraseña si RESET_ADMIN_PASSWORD=true
             if reset_password:
                 admin_user.hashed_password = auth.get_password_hash(default_password)
                 admin_user.must_change_password = False
                 db.commit()
-                print(f"Admin password resetada a: {default_password}")
+                logger.info(f"Admin password resetada a: {default_password}")
             else:
-                print("Admin ya existe")
+                logger.info("Admin ya existe")
 
     except Exception as e:
-        print("Error admin:", e)
+        logger.error(f"Error admin: {e}")
     finally:
         db.close()
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { bitacoraService } from '../services/api';
 import {
   PlusCircle, Building2, Server, AppWindow, FolderTree,
@@ -365,7 +366,7 @@ const Configuracion = () => {
       setNuevaEmpresa('');
       showFlash('empresa', 'Empresa creada');
       fetchData();
-    } catch { alert('Error: puede que ya exista.'); }
+    } catch { toast.error('Error: puede que ya exista.'); }
   };
 
   const handleCrearAplicacion = async (e) => {
@@ -379,7 +380,7 @@ const Configuracion = () => {
       setNuevaAplicacion(''); setAplicacionEmpresas([]);
       showFlash('aplicacion', 'Aplicación creada');
       fetchData();
-    } catch { alert('Error: puede que ya exista.'); }
+    } catch { toast.error('Error: puede que ya exista.'); }
   };
 
   const handleCrearCategoria = async (e) => {
@@ -390,13 +391,13 @@ const Configuracion = () => {
       setNuevaCategoria('');
       showFlash('categoria', 'Categoría creada');
       fetchData();
-    } catch { alert('Error: puede que ya exista.'); }
+    } catch { toast.error('Error: puede que ya exista.'); }
   };
 
   const handleCrearProducto = async (e) => {
     e.preventDefault();
     if (!nuevoProducto.trim() || !productoCategoria) {
-      alert('Ingresa el nombre y selecciona una categoría.');
+      toast.warning('Ingresa el nombre y selecciona una categoría.');
       return;
     }
     try {
@@ -407,7 +408,7 @@ const Configuracion = () => {
       setNuevoProducto(''); setProductoCategoria('');
       showFlash('producto', 'Producto creado');
       fetchData();
-    } catch { alert('Error: puede que ya exista.'); }
+    } catch { toast.error('Error: puede que ya exista.'); }
   };
 
   /* ── Editar ───────────────────────────────────────────────────────────── */
@@ -446,7 +447,7 @@ const Configuracion = () => {
       }
       setEditItem(null);
       fetchData();
-    } catch { alert('Error al actualizar. Verifique que el nombre no esté repetido.'); }
+    } catch { toast.error('Error al actualizar. Verifique que el nombre no esté repetido.'); }
   };
 
   /* ── Panel metadata ───────────────────────────────────────────────────── */

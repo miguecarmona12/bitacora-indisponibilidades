@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { 
   MessageSquare, Send, X, Bot, User, Sparkles, 
   CheckCircle2, AlertTriangle, Loader2, HelpCircle 
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { bitacoraService, authService } from '../services/api';
 const CHAT_DARK_STYLES = `
   .dark .chat-window { background: #1a1a2e !important; border-color: #2e2e4e !important; }
@@ -29,34 +31,23 @@ const AIChatWidget = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   
   // Catálogos locales para mostrar nombres en lugar de IDs en la previsualización
-  const [catalogos, setCatalogos] = useState({
-    empresas: [],
-    aplicaciones: [],
-    categorias: [],
-    productos: []
-  });
-
   const chatEndRef = useRef(null);
   const currentUser = authService.getCurrentUser();
 
-  // Cargar catálogos iniciales al montar
-  useEffect(() => {
-    if (isOpen) {
-      (async () => {
-        try {
-          const [e, a, c, p] = await Promise.all([
-            bitacoraService.getEmpresas(),
-            bitacoraService.getAplicaciones(),
-            bitacoraService.getCategorias(),
-            bitacoraService.getProductos()
-          ]);
-          setCatalogos({ empresas: e, aplicaciones: a, categorias: c, productos: p });
-        } catch (err) {
-          console.error("Error al cargar catálogos en Chat IA:", err);
-        }
-      })();
-    }
-  }, [isOpen]);
+  const { data: catalogos = { empresas: [], aplicaciones: [], categorias: [], productos: [] } } = useQuery({
+    queryKey: ['chat-catalogos'],
+    queryFn: async () => {
+      const [e, a, c, p] = await Promise.all([
+        bitacoraService.getEmpresas(),
+        bitacoraService.getAplicaciones(),
+        bitacoraService.getCategorias(),
+        bitacoraService.getProductos()
+      ]);
+      return { empresas: e, aplicaciones: a, categorias: c, productos: p };
+    },
+    enabled: isOpen,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Mensaje de bienvenida inicial
   useEffect(() => {
@@ -132,7 +123,7 @@ const AIChatWidget = () => {
       });
     } catch (err) {
       console.error(err);
-      alert("Error al registrar el incidente en la base de datos.");
+      toast.error("Error al registrar el incidente en la base de datos.");
     } finally {
       setIsRegistering(false);
     }

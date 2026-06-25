@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { bitacoraService, authService } from '../services/api';
 import {
   Calendar, Clock, FileText, AlertTriangle,
@@ -285,7 +286,7 @@ const Bitacora = () => {
     const hasAny = formData.empresa_ids.length > 0 || formData.aplicacion_ids.length > 0
       || formData.categoria_ids.length > 0 || formData.producto_ids.length > 0;
     if (!hasAny || !formData.duracion_minutos) {
-      alert('Selecciona al menos un elemento afectado y la duración.');
+      toast.warning('Selecciona al menos un elemento afectado y la duración.');
       return;
     }
     setSubmitting(true);
@@ -333,7 +334,7 @@ const Bitacora = () => {
       setProductSearch('');
       setCurrentPage(1);
       fetchData();
-    } catch { alert('Error al registrar incidencia.'); }
+    } catch { toast.error('Error al registrar incidencia.'); }
     finally { setSubmitting(false); }
   };
 
@@ -355,14 +356,14 @@ const Bitacora = () => {
       });
       setEditingIncidente(null);
       fetchData();
-    } catch { alert('Error al actualizar.'); }
+    } catch { toast.error('Error al actualizar.'); }
   };
 
   /* ── Delete ────────────────────────────────────────────────────────────── */
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar este incidente? Esta acción no se puede deshacer.')) return;
     try { await bitacoraService.deleteIncidente(id); fetchData(); }
-    catch { alert('Error al eliminar.'); }
+    catch { toast.error('Error al eliminar.'); }
   };
 
   /* ── Helpers ───────────────────────────────────────────────────────────── */
