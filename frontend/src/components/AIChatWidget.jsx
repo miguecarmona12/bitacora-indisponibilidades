@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
   MessageSquare, Send, X, Bot, User, Sparkles, 
@@ -24,6 +25,9 @@ const CHAT_DARK_STYLES = `
 `;
 
 const AIChatWidget = () => {
+  const location = useLocation();
+  if (location.pathname === '/login') return null;
+
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');

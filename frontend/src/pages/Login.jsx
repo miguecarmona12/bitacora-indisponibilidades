@@ -245,6 +245,18 @@ const STYLES = `
     to   { opacity: 1; transform: translateY(0); }
   }
   .lg-fadein { animation: lg-fadein 0.4s cubic-bezier(.16,1,.3,1) both; }
+
+  /* ── Dark mode disabled — login always keeps light appearance ── */
+  .dark .lg-wrap {
+    --violet:        #7c3aed;
+    --violet-mid:    #8b5cf6;
+    --surface:       #ffffff;
+    --surface-2:     #fafafa;
+    --border:        #e4e4e7;
+    --text-1:        #09090b;
+    --text-2:        #52525b;
+    --text-3:        #a1a1aa;
+  }
 `;
 
 /* ═══════════════════════════════════════════════════════════
