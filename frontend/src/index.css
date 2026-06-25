@@ -3,18 +3,70 @@
 @tailwind utilities;
 
 :root {
+  --violet:        #7c3aed;
+  --violet-mid:    #8b5cf6;
+  --violet-soft:   #f5f3ff;
+  --fuchsia:       #a21caf;
+  --fuchsia-soft:  #fdf4ff;
+  --pink:          #be185d;
+  --pink-soft:     #fdf2f8;
+  --orange:        #c2410c;
+  --orange-soft:   #fff7ed;
+  --sky:           #0284c7;
+  --sky-soft:      #f0f9ff;
+  --emerald:       #059669;
+  --emerald-soft:  #f0fdf4;
+  --amber:         #d97706;
+  --amber-soft:    #fffbeb;
+  --red:           #dc2626;
+  --red-soft:      #fef2f2;
+  --surface:       #ffffff;
+  --surface-2:     #fafafa;
+  --surface-3:     #f4f4f5;
+  --border:        #e4e4e7;
+  --border-2:      rgba(124,58,237,0.13);
+  --text-1:        #09090b;
+  --text-2:        #52525b;
+  --text-3:        #a1a1aa;
+  --shadow-sm:     0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-lg:     0 20px 40px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
+  --shadow-xl:     0 24px 48px rgba(0,0,0,0.1), 0 8px 20px rgba(0,0,0,0.06);
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     14px;
+  --radius-xl:     18px;
+  --radius-2xl:    24px;
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.dark {
+  --violet-soft:   #2e1a4e;
+  --fuchsia-soft:  #2e1a3e;
+  --pink-soft:     #2e1a2e;
+  --orange-soft:   #2e1a0e;
+  --sky-soft:      #0e1a2e;
+  --emerald-soft:  #0e1e1e;
+  --amber-soft:    #2e1e0e;
+  --red-soft:      #2e0e0e;
+  --surface:       #14141f;
+  --surface-2:     #1a1a2e;
+  --surface-3:     #1e1e32;
+  --border:        #2e2e4e;
+  --border-2:      rgba(139,92,246,0.25);
+  --text-1:        #f1f1f6;
+  --text-2:        #a1a1b5;
+  --text-3:        #6b6b80;
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg:     0 20px 40px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-xl:     0 24px 48px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.4);
 }
 
 body {
@@ -23,43 +75,33 @@ body {
   background-color: #f3f4f6;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
+.dark body {
+  background-color: #0e0e1a;
 }
-
 
 .charts-grid {
   display: grid;
   gap: 14px;
   margin-bottom: 20px;
-  grid-template-columns: 1fr; /* 1 columna en móvil */
+  grid-template-columns: 1fr;
 }
 
 @media (min-width: 768px) {
-  .charts-grid {
-    grid-template-columns: repeat(2, 1fr); /* 2 columnas en tablets/iPad */
-  }
+  .charts-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (min-width: 1100px) {
-  .charts-grid {
-    grid-template-columns: repeat(3, 1fr); /* 3 columnas en computadores */
+  .charts-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .usr-sticky {
+    position: sticky;
+    top: 80px;
+    z-index: 10;
   }
 }
 
-/* Busca y actualiza esta parte en tu bloque STYLES */
-@media (min-width: 1024px) { 
-  .usr-sticky { 
-    position: sticky; 
-    top: 80px; /* Ajusta según el alto de tu navbar */
-    z-index: 10;
-  } 
-}
-
-/* Agregamos esto para que la tabla no se rompa en móviles */
 .usr-table-container {
   width: 100%;
   overflow-x: auto;

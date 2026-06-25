@@ -13,33 +13,6 @@ import {
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
 
-  :root {
-    --violet:      #7c3aed;
-    --violet-mid:  #8b5cf6;
-    --violet-soft: #f5f3ff;
-    --fuchsia:     #a21caf;
-    --fuchsia-soft:#fdf4ff;
-    --sky:         #0284c7;
-    --sky-soft:    #f0f9ff;
-    --emerald:     #059669;
-    --emerald-soft:#f0fdf4;
-    --amber:       #d97706;
-    --amber-soft:  #fffbeb;
-    --red:         #dc2626;
-    --red-soft:    #fef2f2;
-    --surface:     #ffffff;
-    --surface-2:   #fafafa;
-    --surface-3:   #f4f4f5;
-    --border:      #e4e4e7;
-    --text-1:      #09090b;
-    --text-2:      #52525b;
-    --text-3:      #a1a1aa;
-    --shadow-md:   0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
-    --shadow-lg:   0 20px 40px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
-    --radius-md:   10px;
-    --radius-xl:   18px;
-  }
-
   .usr-root * { font-family: 'Geist', sans-serif; box-sizing: border-box; }
   .usr-mono   { font-family: 'Geist Mono', monospace !important; }
 
@@ -148,8 +121,8 @@ const Modal = ({ open, onClose, title, Icon, accent, children }) => {
       className="usr-root fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }} className="rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
           <div className="flex items-center gap-3">
             <div style={{ width: 34, height: 34, borderRadius: 9, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {Icon && <Icon size={15} color="white" />}
@@ -466,7 +439,7 @@ const Usuarios = () => {
   });
 
   return (
-    <div className="usr-root min-h-screen pt-20 px-4 pb-16 bg-white">
+    <div className="usr-root min-h-screen pt-20 px-4 pb-16" style={{ background: 'var(--surface)' }}>
       <style>{STYLES}</style>
 
       <div className="max-w-7xl mx-auto">
@@ -544,7 +517,7 @@ const Usuarios = () => {
 
           {/* Panel Principal: Tabla */}
           <section className="usr-card overflow-hidden">
-            <div className="p-5 border-b border-gray-100 bg-gray-50/30 flex flex-wrap items-center justify-between gap-4">
+            <div className="p-5 flex flex-wrap items-center justify-between gap-4" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 Usuarios Registrados
                 <span className="bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full text-[10px]">{filteredUsuarios.length}</span>
@@ -554,7 +527,8 @@ const Usuarios = () => {
                 <div className="flex gap-1">
                   {['todos', 'admin', 'tecnico', 'cliente'].map(r => (
                     <button key={r} onClick={() => setFilterRol(r)}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${filterRol === r ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${filterRol === r ? 'text-white' : 'hover:border-gray-300'}`}
+                      style={filterRol === r ? { background: 'var(--text-1)' } : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-3)' }}>
                       {r}
                     </button>
                   ))}

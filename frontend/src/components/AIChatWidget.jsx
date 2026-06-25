@@ -4,6 +4,23 @@ import {
   CheckCircle2, AlertTriangle, Loader2, HelpCircle 
 } from 'lucide-react';
 import { bitacoraService, authService } from '../services/api';
+const CHAT_DARK_STYLES = `
+  .dark .chat-window { background: #1a1a2e !important; border-color: #2e2e4e !important; }
+  .dark .chat-msgs { background: #14141f !important; }
+  .dark .chat-input-wrap { background: #1a1a2e !important; border-color: #2e2e4e !important; }
+  .dark .chat-input { background: #14141f !important; border-color: #2e2e4e !important; color: #f1f1f6 !important; }
+  .dark .chat-input::placeholder { color: #6b6b80 !important; }
+  .dark .chat-msg-user { background: #7c3aed !important; }
+  .dark .chat-msg-bot { background: #1e1e32 !important; border-color: #2e2e4e !important; color: #f1f1f6 !important; }
+  .dark .chat-card { background: #1e1e32 !important; border-color: #2e2e4e !important; }
+  .dark .chat-card .text-gray-900, .dark .chat-card .font-semibold.text-gray-900 { color: #f1f1f6 !important; }
+  .dark .chat-card .text-gray-800 { color: #d1d1e0 !important; }
+  .dark .chat-card .text-gray-700 { color: #c1c1d0 !important; }
+  .dark .chat-card .text-gray-400, .dark .chat-card .font-semibold.text-gray-400 { color: #8a8aa0 !important; }
+  .dark .chat-card .text-gray-500 { color: #7a7a90 !important; }
+  .dark .chat-card .text-red-500 { color: #f87171 !important; }
+`;
+
 const AIChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -145,6 +162,7 @@ const AIChatWidget = () => {
 
   return (
     <>
+      <style>{CHAT_DARK_STYLES}</style>
       {/* Botón Flotante */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -156,7 +174,7 @@ const AIChatWidget = () => {
 
       {/* Ventana de Chat */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-96 h-[550px] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden transition-all duration-300 animate-in slide-in-from-bottom-5">
+        <div className="chat-window fixed bottom-24 right-6 z-50 w-96 h-[550px] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden transition-all duration-300 animate-in slide-in-from-bottom-5">
           
           {/* Cabecera */}
           <div className="bg-gradient-to-r from-violet-600 to-fuchsia-600 p-4 text-white flex justify-between items-center shadow-md">
@@ -181,7 +199,7 @@ const AIChatWidget = () => {
           </div>
 
           {/* Cuerpo de Mensajes */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
+          <div className="chat-msgs flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                 {/* Cabecera de Mensaje */}
@@ -197,8 +215,8 @@ const AIChatWidget = () => {
                 <div 
                   className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-sm font-normal leading-relaxed whitespace-pre-line ${
                     msg.role === 'user' 
-                      ? 'bg-violet-600 text-white rounded-tr-none' 
-                      : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                      ? 'chat-msg-user bg-violet-600 text-white rounded-tr-none' 
+                      : 'chat-msg-bot bg-white text-gray-800 border border-gray-100 rounded-tl-none'
                   }`}
                 >
                   {msg.content}
@@ -206,7 +224,7 @@ const AIChatWidget = () => {
 
                 {/* Tarjeta interactiva de Incidentes Extraídos */}
                 {msg.role === 'model' && msg.incident_detected && msg.extracted_data && (
-                  <div className="mt-3 w-full bg-white border border-gray-150 rounded-xl p-3 shadow-md border-l-4 border-l-violet-500 animate-in fade-in slide-in-from-left-2">
+                  <div className="chat-card mt-3 w-full bg-white border border-gray-150 rounded-xl p-3 shadow-md border-l-4 border-l-violet-500 animate-in fade-in slide-in-from-left-2">
                     <div className="flex items-center gap-1 text-[10px] font-bold text-violet-600 uppercase tracking-wider mb-2">
                       <CheckCircle2 size={12} /> Confirmar Datos Extraídos
                     </div>
@@ -386,14 +404,14 @@ const AIChatWidget = () => {
           </div>
 
           {/* Formulario de Input */}
-          <form onSubmit={handleSend} className="p-3 bg-white border-t border-gray-100 flex gap-2">
+          <form onSubmit={handleSend} className="chat-input-wrap p-3 bg-white border-t border-gray-100 flex gap-2">
             <input
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Pregunta o describe el incidente..."
               disabled={isLoading || isRegistering}
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-gray-800 placeholder-gray-400 disabled:opacity-50"
+              className="chat-input flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-gray-800 placeholder-gray-400 disabled:opacity-50"
             />
             <button
               type="submit"

@@ -7,20 +7,6 @@ import { Lock, Eye, EyeOff, ShieldAlert, LogOut } from 'lucide-react';
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&display=swap');
 
-  :root {
-    --violet:      #7c3aed;
-    --violet-mid:  #8b5cf6;
-    --fuchsia:     #a21caf;
-    --surface:     #ffffff;
-    --surface-2:   #fafafa;
-    --border:      #e4e4e7;
-    --text-1:      #09090b;
-    --text-2:      #52525b;
-    --text-3:      #a1a1aa;
-    --radius-md:   10px;
-    --radius-lg:   14px;
-  }
-
   .lg-root * { font-family: 'Geist', sans-serif; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 
   .lg-wrap {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import AIChatWidget from './components/AIChatWidget';
 import Dashboard from './pages/Dashboard';
@@ -37,22 +38,24 @@ const PrivateRoute = ({ children, requireRole = null }) => {
 
 function App() {
   return (
-    <Router>
-      <div className="w-full min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-        <Navbar />
-        <main className="flex-1 w-full relative">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/force-change-password" element={<PrivateRoute><ForceChangePassword /></PrivateRoute>} />
-            <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-            <Route path="/bitacora" element={<PrivateRoute requireRole="tecnico"><Bitacora /></PrivateRoute>} />
-            <Route path="/configuracion" element={<PrivateRoute requireRole="admin"><Configuracion /></PrivateRoute>} />
-            <Route path="/usuarios" element={<PrivateRoute requireRole="admin"><Usuarios /></PrivateRoute>} />
-          </Routes>
-          <AIChatWidget />
-        </main>
-      </div>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <div className="w-full min-h-screen flex flex-col font-sans" style={{ backgroundColor: 'var(--surface-2)', color: 'var(--text-1)' }}>
+          <Navbar />
+          <main className="flex-1 w-full relative">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/force-change-password" element={<PrivateRoute><ForceChangePassword /></PrivateRoute>} />
+              <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+              <Route path="/bitacora" element={<PrivateRoute requireRole="tecnico"><Bitacora /></PrivateRoute>} />
+              <Route path="/configuracion" element={<PrivateRoute requireRole="admin"><Configuracion /></PrivateRoute>} />
+              <Route path="/usuarios" element={<PrivateRoute requireRole="admin"><Usuarios /></PrivateRoute>} />
+            </Routes>
+            <AIChatWidget />
+          </main>
+        </div>
+      </Router>
+    </ThemeProvider>
   );
 }
 

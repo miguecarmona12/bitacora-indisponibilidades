@@ -7,27 +7,6 @@ import { Lock, User, Eye, EyeOff, ShieldCheck, Layers, Activity } from 'lucide-r
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
 
-  :root {
-    --violet:      #7c3aed;
-    --violet-mid:  #8b5cf6;
-    --violet-soft: #f5f3ff;
-    --fuchsia:     #a21caf;
-    --surface:     #ffffff;
-    --surface-2:   #fafafa;
-    --surface-3:   #f4f4f5;
-    --border:      #e4e4e7;
-    --text-1:      #09090b;
-    --text-2:      #52525b;
-    --text-3:      #a1a1aa;
-    --shadow-sm:   0 1px 2px rgba(0,0,0,0.05);
-    --shadow-md:   0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
-    --shadow-xl:   0 24px 48px rgba(0,0,0,0.1), 0 8px 20px rgba(0,0,0,0.06);
-    --radius-sm:   6px;
-    --radius-md:   10px;
-    --radius-lg:   14px;
-    --radius-xl:   18px;
-  }
-
   .lg-root * { font-family: 'Geist', sans-serif; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
   .lg-mono { font-family: 'Geist Mono', monospace !important; }
 

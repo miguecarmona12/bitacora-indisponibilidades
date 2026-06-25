@@ -34,28 +34,6 @@ const getDispMeta = (d) => {
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
 
-  :root {
-    --violet:      #7c3aed;
-    --violet-mid:  #8b5cf6;
-    --violet-soft: #f5f3ff;
-    --fuchsia:     #a21caf;
-    --surface:     #ffffff;
-    --surface-2:   #fafafa;
-    --surface-3:   #f4f4f5;
-    --border:      #e4e4e7;
-    --text-1:      #09090b;
-    --text-2:      #52525b;
-    --text-3:      #a1a1aa;
-    --shadow-sm:   0 1px 2px rgba(0,0,0,0.05);
-    --shadow-md:   0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
-    --shadow-lg:   0 20px 40px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
-    --radius-sm:   6px;
-    --radius-md:   10px;
-    --radius-lg:   14px;
-    --radius-xl:   18px;
-    --radius-2xl:  24px;
-  }
-
   .d-root * { font-family: 'Geist', sans-serif; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
   .d-mono   { font-family: 'Geist Mono', monospace !important; }
   .d-bg     { background: var(--surface); min-height: 100vh; }
@@ -384,6 +362,10 @@ const STYLES = `
     font-size: 10px !important;
     font-weight: 600 !important;
   }
+
+  .dark .d-select option { background: #1a1a2e; color: var(--text-1); }
+  .dark .d-clear-btn { color: #fca5a5; background: #2e0e0e; border-color: #450a0a; }
+  .dark .d-clear-btn:hover { background: #3f0f0f; border-color: #7f1d1d; }
 `;
 
 /* ─────────────────────────────────────────────────────────

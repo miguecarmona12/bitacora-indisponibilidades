@@ -170,6 +170,16 @@ const STYLES = `
     100% { opacity: 0; }
   }
   .bita-flash { animation: bita-flash 2.2s ease forwards; }
+
+  .bita-bg { background-color: var(--surface); }
+  .bita-card { background: color-mix(in srgb, var(--surface) 88%, transparent); border-color: color-mix(in srgb, var(--violet-mid) 15%, transparent); box-shadow: 0 4px 28px color-mix(in srgb, var(--violet) 8%, transparent), 0 1px 3px color-mix(in srgb, rgba(0,0,0) 4%, transparent); }
+  .bita-thead th { background: linear-gradient(to bottom, var(--violet-soft), var(--violet-soft)); }
+  .bita-input { color: var(--text-1); background: var(--surface); border-color: var(--border); }
+  .bita-input:focus { border-color: var(--violet-mid) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--violet-mid) 11%, transparent); }
+  .bita-tr:hover { background: color-mix(in srgb, var(--violet-mid) 4%, transparent); }
+  .bita-page-btn:not(.active):not(:disabled) { background: var(--surface); color: var(--text-2); border-color: color-mix(in srgb, var(--violet-mid) 20%, transparent); }
+  .bita-page-btn:not(.active):not(:disabled):hover { border-color: var(--violet-mid); color: var(--violet-mid); background: var(--violet-soft); }
+  .bita-page-btn:disabled { background: var(--surface-3); }
 `;
 
 /* ─── Pill colors per field ─────────────────────────────────────────────────── */
