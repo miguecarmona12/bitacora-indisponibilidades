@@ -401,22 +401,24 @@ const Bitacora = () => {
   );
 
   /* ── Checkbox Group renderer ───────────────────────────────────────────── */
-  const renderCheckboxGroup = (step, title, items, field) => {
+  const renderCheckboxGroup = (step, title, items, field, disabled = false) => {
     const c = PILL[field];
     return (
       <div>
         <div className="bita-step-label">
-          <span className={`bita-step-num ${STEP_BG[field]}`}>{step}</span>
-          {title}
+          <span className={`bita-step-num ${disabled ? 'bg-gray-200 text-gray-400' : STEP_BG[field]}`}>{step}</span>
+          <span className={disabled ? 'text-gray-400 font-bold' : ''}>{title}</span>
           <span className="ml-auto flex gap-2">
             <button type="button"
-              onClick={() => setFormData(p => ({ ...p, [field]: items.map(i => i.id) }))}
-              className="text-[10px] text-violet-500 hover:text-violet-700 font-semibold underline underline-offset-2">
+              disabled={disabled}
+              onClick={() => !disabled && setFormData(p => ({ ...p, [field]: items.map(i => i.id) }))}
+              className={`text-[10px] font-semibold underline underline-offset-2 ${disabled ? 'text-gray-300 no-underline cursor-not-allowed' : 'text-violet-500 hover:text-violet-700'}`}>
               Todo
             </button>
             <button type="button"
-              onClick={() => setFormData(p => ({ ...p, [field]: [] }))}
-              className="text-[10px] text-gray-400 hover:text-gray-600 font-semibold underline underline-offset-2">
+              disabled={disabled}
+              onClick={() => !disabled && setFormData(p => ({ ...p, [field]: [] }))}
+              className={`text-[10px] font-semibold underline underline-offset-2 ${disabled ? 'text-gray-300 no-underline cursor-not-allowed' : 'text-gray-400 hover:text-gray-600'}`}>
               Ninguno
             </button>
           </span>
@@ -427,10 +429,11 @@ const Bitacora = () => {
               type="text"
               placeholder="🔍 Buscar producto..."
               value={productSearch}
+              disabled={disabled}
               onChange={e => setProductSearch(e.target.value)}
-              className="bita-input w-full pl-7 pr-7 py-1.5 rounded-lg border border-gray-200 text-xs font-medium"
+              className={`bita-input w-full pl-7 pr-7 py-1.5 rounded-lg border border-gray-200 text-xs font-medium ${disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100 opacity-60' : ''}`}
             />
-            {productSearch && (
+            {productSearch && !disabled && (
               <button
                 type="button"
                 onClick={() => setProductSearch('')}
@@ -454,8 +457,12 @@ const Bitacora = () => {
                 const on = formData[field].includes(item.id);
                 return (
                   <label key={item.id}
-                    className={`bita-pill flex items-center gap-1.5 px-2.5 py-[7px] border text-xs font-medium ${on ? c.on : c.off}`}>
-                    <input type="checkbox" className="hidden" checked={on} onChange={() => toggleSelection(field, item.id)} />
+                    className={`bita-pill flex items-center gap-1.5 px-2.5 py-[7px] border text-xs font-medium ${
+                      disabled 
+                        ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed opacity-60' 
+                        : (on ? c.on : c.off)
+                    }`}>
+                    <input type="checkbox" className="hidden" checked={on} disabled={disabled} onChange={() => !disabled && toggleSelection(field, item.id)} />
                     {on && <CheckCircle2 size={11} className="flex-shrink-0" />}
                     <span className="truncate leading-tight">{item.nombre}</span>
                   </label>
@@ -478,6 +485,23 @@ const Bitacora = () => {
   });
 
   const sorted  = [...filteredIncidentes].sort((a, b) => new Date(b.fecha_inicio) - new Date(a.fecha_inicio));
+
+  // Obtener motivos y soluciones comunes basados en el histórico
+  const getCommonFields = (fieldName) => {
+    const counts = {};
+    incidentes.forEach(inc => {
+      const val = inc[fieldName]?.trim();
+      if (val) {
+        counts[val] = (counts[val] || 0) + 1;
+      }
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(entry => entry[0]);
+  };
+
+  const motivosComunes = getCommonFields('motivo');
+  const solucionesComunes = getCommonFields('solucion');
   const total   = Math.ceil(sorted.length / itemsPerPage) || 1;
   const current = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -583,11 +607,11 @@ const Bitacora = () => {
                 <div className="bita-form-section space-y-4">
                   {renderCheckboxGroup(1, 'Empresa / Red',    empresas,             'empresa_ids')}
                   <div className="bita-divider" />
-                  {renderCheckboxGroup(2, 'Aplicación',       aplicacionesFiltradas,'aplicacion_ids')}
+                  {renderCheckboxGroup(2, 'Aplicación',       aplicacionesFiltradas,'aplicacion_ids', formData.producto_ids.length > 0)}
                   <div className="bita-divider" />
-                  {renderCheckboxGroup(3, 'Categoría',        categorias,           'categoria_ids')}
+                  {renderCheckboxGroup(3, 'Categoría',        categorias,           'categoria_ids', formData.aplicacion_ids.length > 0)}
                   <div className="bita-divider" />
-                  {renderCheckboxGroup(4, 'Producto',         productosFiltrados,   'producto_ids')}
+                  {renderCheckboxGroup(4, 'Producto',         productosFiltrados,   'producto_ids', formData.aplicacion_ids.length > 0)}
                 </div>
 
                 {/* Fecha Inicio */}
@@ -624,9 +648,28 @@ const Bitacora = () => {
 
                 {/* Motivo */}
                 <div>
-                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                    <AlertTriangle size={12} className="text-amber-500" /> Motivo / Descripción
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                      <AlertTriangle size={12} className="text-amber-500" /> Motivo / Descripción
+                    </label>
+                    {motivosComunes.length > 0 && (
+                      <select
+                        className="text-[10px] text-violet-600 hover:text-violet-800 font-bold bg-transparent border-none focus:outline-none max-w-[180px] cursor-pointer"
+                        value=""
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val) {
+                            setFormData(f => ({ ...f, motivo: val }));
+                          }
+                        }}
+                      >
+                        <option value="" disabled>⚡ Usar común</option>
+                        {motivosComunes.slice(0, 15).map((mot, index) => (
+                          <option key={index} value={mot}>{mot.length > 35 ? mot.slice(0, 35) + '...' : mot}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                   <textarea rows={2} placeholder="Razón de la caída..."
                     className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
                     value={formData.motivo}
@@ -635,9 +678,28 @@ const Bitacora = () => {
 
                 {/* Solución */}
                 <div>
-                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                    <Zap size={12} className="text-emerald-500" /> Solución Aplicada
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                      <Zap size={12} className="text-emerald-500" /> Solución Aplicada
+                    </label>
+                    {solucionesComunes.length > 0 && (
+                      <select
+                        className="text-[10px] text-violet-600 hover:text-violet-800 font-bold bg-transparent border-none focus:outline-none max-w-[180px] cursor-pointer"
+                        value=""
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val) {
+                            setFormData(f => ({ ...f, solucion: val }));
+                          }
+                        }}
+                      >
+                        <option value="" disabled>⚡ Usar común</option>
+                        {solucionesComunes.slice(0, 15).map((sol, index) => (
+                          <option key={index} value={sol}>{sol.length > 35 ? sol.slice(0, 35) + '...' : sol}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                   <textarea rows={2} placeholder="Acciones correctivas..."
                     className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
                     value={formData.solucion}
@@ -1016,21 +1078,24 @@ const Bitacora = () => {
                 {[
                   { label: 'Empresa / Red',  field: 'empresa_id',    items: empresas },
                   { label: 'Aplicación',     field: 'aplicacion_id',
+                    disabled: !!editFormData.producto_id,
                     items: aplicaciones.filter(a => {
                       if (!editFormData.empresa_id) return true;
                       if (!a.empresas?.length) return true;
                       return a.empresas.map(e => e.id).includes(parseInt(editFormData.empresa_id));
                     })
                   },
-                  { label: 'Categoría',     field: 'categoria_id',  items: categorias },
+                  { label: 'Categoría',     field: 'categoria_id',  items: categorias, disabled: !!editFormData.aplicacion_id },
                   { label: 'Producto',      field: 'producto_id',
+                    disabled: !!editFormData.aplicacion_id,
                     items: productos.filter(p => !editFormData.categoria_id || p.categoria_id === parseInt(editFormData.categoria_id))
                   },
-                ].map(({ label, field, items }) => (
+                ].map(({ label, field, items, disabled = false }) => (
                   <div key={field}>
-                    <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">{label}</label>
+                    <label className={`block text-[10px] font-extrabold uppercase tracking-widest mb-1.5 ${disabled ? 'text-gray-300' : 'text-gray-500'}`}>{label}</label>
                     <select
-                      className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                      disabled={disabled}
+                      className={`bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm ${disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100 opacity-60' : ''}`}
                       value={editFormData[field]}
                       onChange={e => setEditFormData(f => ({ ...f, [field]: e.target.value }))}>
                       <option value="">— Sin selección —</option>
@@ -1095,7 +1160,26 @@ const Bitacora = () => {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] font-extrabold text-amber-500 uppercase tracking-widest mb-1.5">Motivo / Falla</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-extrabold text-amber-500 uppercase tracking-widest">Motivo / Falla</label>
+                    {motivosComunes.length > 0 && (
+                      <select
+                        className="text-[10px] text-violet-650 hover:text-violet-800 font-bold bg-transparent border-none focus:outline-none max-w-[200px] cursor-pointer"
+                        value=""
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val) {
+                            setEditFormData(f => ({ ...f, motivo: val }));
+                          }
+                        }}
+                      >
+                        <option value="" disabled>⚡ Usar común</option>
+                        {motivosComunes.slice(0, 15).map((mot, index) => (
+                          <option key={index} value={mot}>{mot.length > 35 ? mot.slice(0, 35) + '...' : mot}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                   <textarea rows={3}
                     className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
                     value={editFormData.motivo}
@@ -1103,7 +1187,26 @@ const Bitacora = () => {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest mb-1.5">Solución Aplicada</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest">Solución Aplicada</label>
+                    {solucionesComunes.length > 0 && (
+                      <select
+                        className="text-[10px] text-violet-655 hover:text-violet-800 font-bold bg-transparent border-none focus:outline-none max-w-[200px] cursor-pointer"
+                        value=""
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val) {
+                            setEditFormData(f => ({ ...f, solucion: val }));
+                          }
+                        }}
+                      >
+                        <option value="" disabled>⚡ Usar común</option>
+                        {solucionesComunes.slice(0, 15).map((sol, index) => (
+                          <option key={index} value={sol}>{sol.length > 35 ? sol.slice(0, 35) + '...' : sol}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                   <textarea rows={3}
                     className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
                     value={editFormData.solucion}
