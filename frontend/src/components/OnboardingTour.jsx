@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { authService } from '../services/api';
 
 const STEPS = [
   { title: 'Dashboard', desc: 'Aquí ves estadísticas clave: total de caídas, minutos de inactividad, apps afectadas y gráficos por producto.', selector: '[class*="d-chart-card"]' },
@@ -9,13 +11,17 @@ const STEPS = [
 ];
 
 const OnboardingTour = () => {
+  const location = useLocation();
   const [step, setStep] = useState(0);
   const [visible, setVisible] = useState(false);
+  const user = authService.getCurrentUser();
   const done = localStorage.getItem('onboarding_done');
 
   useEffect(() => {
-    if (!done) { const t = setTimeout(() => setVisible(true), 800); return () => clearTimeout(t); }
-  }, [done]);
+    if (user.token && !done) { const t = setTimeout(() => setVisible(true), 800); return () => clearTimeout(t); }
+  }, [user.token, done]);
+
+  if (!user.token || location.pathname === '/login') return null;
 
   if (!visible) return null;
 
