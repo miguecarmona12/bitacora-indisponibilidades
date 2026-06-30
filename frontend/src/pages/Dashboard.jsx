@@ -1,9 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { bitacoraService, authService } from '../services/api';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
-import ResumenSemanal from '../components/ResumenSemanal';
-import AnalisisPredictivo from '../components/AnalisisPredictivo';
-import TimelineVisual from '../components/TimelineVisual';
 import {
   BarChart3, TrendingUp, AlertCircle, Clock,
   AppWindow, Server, Activity, Filter, X,
@@ -693,12 +690,6 @@ const Dashboard = () => {
           </div>
         ) : (
           <>
-            {flags.resumen_semanal || flags.analisis_predictivo ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14, marginBottom: 20 }}>
-                {flags.resumen_semanal && <ResumenSemanal />}
-                {flags.analisis_predictivo && <AnalisisPredictivo />}
-              </div>
-            ) : null}
             {/* ── KPI Grid ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 14, marginBottom: 20 }}>
               <KpiCard icon={AlertCircle} label="Total Caídas"       value={stats.totalIncidentes}      sub="incidentes registrados"   gradFrom="#dc2626" gradTo="#f87171" delay={0}   />
@@ -787,15 +778,6 @@ const Dashboard = () => {
                 )}
               </div>
             </div>
-
-            {flags.timeline && (
-              <div className="d-chart-card d-fadeup" style={{ animationDelay: '380ms' }}>
-                <div className="d-table-header">
-                  <SectionTitle icon={Activity} title="Timeline · Hoy" iconColor="var(--violet)" />
-                </div>
-                <TimelineVisual incidentes={incidentes} productos={productos} />
-              </div>
-            )}
 
             {/* ── Table ── */}
             <div className="d-table-card d-fadeup" style={{ animationDelay: '260ms' }}>

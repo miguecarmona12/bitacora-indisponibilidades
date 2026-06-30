@@ -227,3 +227,14 @@ class FeatureFlagResponse(BaseModel):
     flag: str
     activo: bool
 
+class FeatureFlagUpdate(BaseModel):
+    activo: bool
+
+# --- ADJUNTOS ---
+class AdjuntoResponse(BaseModel):
+    id: int
+    incidente_id: int
+    filename: str
+    uploaded_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+

@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from database import engine, get_db, SessionLocal
 import models
@@ -12,8 +13,13 @@ from sqlalchemy import text
 import re
 import os
 import sys
+import io
+import smtplib
+from email.mime.text import MIMEText
+from pathlib import Path
 from loguru import logger
 import json
+from openpyxl import Workbook
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -246,9 +252,6 @@ def get_feature_flags(db: Session = Depends(get_db)):
     if not flags:
         defaults = [
             models.FeatureFlag(flag="chat_ia", activo=True),
-            models.FeatureFlag(flag="analisis_predictivo", activo=True),
-            models.FeatureFlag(flag="timeline", activo=True),
-            models.FeatureFlag(flag="resumen_semanal", activo=True),
             models.FeatureFlag(flag="onboarding", activo=True),
         ]
         for f in defaults: db.add(f)
@@ -256,69 +259,17 @@ def get_feature_flags(db: Session = Depends(get_db)):
         flags = defaults
     return flags
 
-# ==============================
-# RESUMEN SEMANAL
-# ==============================
-@app.get("/resumen-semanal")
-def resumen_semanal(db: Session = Depends(get_db)):
-    hoy = datetime.utcnow()
-    inicio_semana = hoy - timedelta(days=hoy.weekday())
-    incidentes = db.query(models.Incidente).filter(
-        models.Incidente.fecha_inicio >= inicio_semana
-    ).all()
-    total = len(incidentes)
-    if total == 0:
-        return {"total": 0, "mensaje": "No hubo incidentes esta semana"}
-    total_min = sum(i.duracion_minutos or 0 for i in incidentes)
-    apps = {}
-    for i in incidentes:
-        if i.aplicacion and i.aplicacion.nombre:
-            apps[i.aplicacion.nombre] = apps.get(i.aplicacion.nombre, 0) + 1
-    app_peor = max(apps, key=apps.get) if apps else "N/A"
-    dias = {}
-    for i in incidentes:
-        d = i.fecha_inicio.strftime("%A")
-        dias[d] = dias.get(d, 0) + 1
-    dia_pico = max(dias, key=dias.get) if dias else "N/A"
-    return {
-        "total": total,
-        "total_minutos": round(total_min, 1),
-        "app_peor": app_peor,
-        "incidentes_app_peor": apps.get(app_peor, 0),
-        "dia_pico": dia_pico,
-        "promedio_minutos": round(total_min / total, 1) if total else 0,
-    }
-
-# ==============================
-# ANÁLISIS PREDICTIVO
-# ==============================
-@app.get("/analisis-predictivo")
-def analisis_predictivo(db: Session = Depends(get_db)):
-    hace_6m = datetime.utcnow() - timedelta(days=180)
-    incidentes = db.query(models.Incidente).filter(
-        models.Incidente.fecha_inicio >= hace_6m
-    ).all()
-    productos = db.query(models.Producto).all()
-    resultado = []
-    for p in productos:
-        relacionados = [i for i in incidentes if i.producto_id == p.id]
-        if not relacionados:
-            continue
-        frecuencia = len(relacionados)
-        duracion_prom = sum(i.duracion_minutos or 0 for i in relacionados) / frecuencia
-        # Riesgo simple basado en frecuencia histórica
-        riesgo = min(round((frecuencia / max(len(incidentes), 1)) * 100, 1), 100)
-        nivel = "alto" if riesgo > 15 else "medio" if riesgo > 5 else "bajo"
-        resultado.append({
-            "producto_id": p.id,
-            "producto": p.nombre,
-            "frecuencia": frecuencia,
-            "duracion_promedio": round(duracion_prom, 1),
-            "riesgo": riesgo,
-            "nivel": nivel,
-        })
-    resultado.sort(key=lambda x: x["riesgo"], reverse=True)
-    return resultado[:10]
+@app.put("/feature-flags/{flag}", response_model=schemas.FeatureFlagResponse)
+def update_feature_flag(flag: str, body: schemas.FeatureFlagUpdate, db: Session = Depends(get_db), usuario: models.Usuario = Depends(auth.get_current_user)):
+    if usuario.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores")
+    f = db.query(models.FeatureFlag).filter(models.FeatureFlag.flag == flag).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="Flag no encontrada")
+    f.activo = body.activo
+    db.commit()
+    db.refresh(f)
+    return f
 
 # ==============================
 # LOGIN
@@ -653,23 +604,48 @@ def delete_producto(producto_id: int, db: Session = Depends(get_db), current_use
 # INCIDENTES
 # ==============================
 @app.get("/incidentes", response_model=List[schemas.IncidenteResponse])
-def get_incidentes(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
-    if current_user.rol == "cliente":
-        return db.query(models.Incidente).filter(models.Incidente.empresa_id == current_user.empresa_id).all()
-    elif current_user.rol == "tecnico" and current_user.empresa_id is not None:
-        return db.query(models.Incidente).filter(models.Incidente.empresa_id == current_user.empresa_id).all()
-    return db.query(models.Incidente).all()
+def get_incidentes(
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+    empresa_id: Optional[int] = None,
+    aplicacion_id: Optional[int] = None,
+    producto_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.get_current_active_user)
+):
+    q = db.query(models.Incidente)
+    if current_user.rol != "admin":
+        if current_user.empresa_id:
+            q = q.filter(models.Incidente.empresa_id == current_user.empresa_id)
+        else:
+            q = q.filter(models.Incidente.usuario_id == current_user.id)
+    if empresa_id:
+        q = q.filter(models.Incidente.empresa_id == empresa_id)
+    if aplicacion_id:
+        q = q.filter(models.Incidente.aplicacion_id == aplicacion_id)
+    if producto_id:
+        q = q.filter(models.Incidente.producto_id == producto_id)
+    if fecha_desde:
+        q = q.filter(models.Incidente.fecha_inicio >= datetime.fromisoformat(fecha_desde))
+    if fecha_hasta:
+        q = q.filter(models.Incidente.fecha_inicio <= datetime.fromisoformat(fecha_hasta))
+    return q.all()
 
 @app.post("/incidentes", response_model=schemas.IncidenteResponse)
 def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
     if current_user.rol == "tecnico" and current_user.empresa_id is not None:
         if incidente.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=403, detail="No autorizado para registrar incidentes en otra empresa")
+    if incidente.fecha_inicio > datetime.now():
+        raise HTTPException(status_code=400, detail="La fecha de inicio no puede ser futura")
+    if incidente.fecha_fin and incidente.fecha_fin < incidente.fecha_inicio:
+        raise HTTPException(status_code=400, detail="La fecha de fin no puede ser anterior a la de inicio")
     nuevo = models.Incidente(**incidente.dict())
     nuevo.usuario_id = current_user.id
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
+    enviar_notificacion_incidente(nuevo, db)
     return nuevo
 
 @app.post("/incidentes/bulk", response_model=List[schemas.IncidenteResponse])
@@ -699,6 +675,10 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
             raise HTTPException(status_code=403, detail="No autorizado para modificar incidentes de otra empresa")
         if datos.empresa_id is not None and datos.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=403, detail="No autorizado para cambiar el incidente a otra empresa")
+    if datos.fecha_inicio and datos.fecha_inicio > datetime.now():
+        raise HTTPException(status_code=400, detail="La fecha de inicio no puede ser futura")
+    if datos.fecha_fin and datos.fecha_inicio and datos.fecha_fin < datos.fecha_inicio:
+        raise HTTPException(status_code=400, detail="La fecha de fin no puede ser anterior a la de inicio")
     for field, value in datos.dict(exclude_unset=True).items():
         setattr(incidente, field, value)
     db.commit()
@@ -717,6 +697,137 @@ def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_u
     db.commit()
     return {"ok": True}
 
+
+# ==============================
+# EXPORTAR INCIDENTES A EXCEL
+# ==============================
+@app.get("/incidentes/exportar")
+def exportar_incidentes(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
+    q = db.query(models.Incidente)
+    if current_user.rol != "admin":
+        if current_user.empresa_id:
+            q = q.filter(models.Incidente.empresa_id == current_user.empresa_id)
+        else:
+            q = q.filter(models.Incidente.usuario_id == current_user.id)
+    incidentes = q.order_by(models.Incidente.fecha_inicio.desc()).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Incidentes"
+    ws.append(["ID", "Empresa", "Aplicación", "Categoría", "Producto",
+               "Fecha Inicio", "Fecha Fin", "Duración (min)", "Motivo",
+               "Solución", "Ticket", "Tipo Afectación", "Origen", "Usuario"])
+
+    for i in incidentes:
+        ws.append([
+            i.id,
+            i.empresa.nombre if i.empresa else "",
+            i.aplicacion.nombre if i.aplicacion else "",
+            i.categoria.nombre if i.categoria else "",
+            i.producto.nombre if i.producto else "",
+            i.fecha_inicio.strftime("%d/%m/%Y %H:%M") if i.fecha_inicio else "",
+            i.fecha_fin.strftime("%d/%m/%Y %H:%M") if i.fecha_fin else "",
+            i.duracion_minutos,
+            i.motivo or "",
+            i.solucion or "",
+            i.ticket or "",
+            i.tipo_afectacion or "",
+            i.origen_afectacion or "",
+            i.usuario.username if i.usuario else "",
+        ])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=incidentes.xlsx"}
+    )
+
+# ==============================
+# ADJUNTOS (ARCHIVOS)
+# ==============================
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+@app.get("/incidentes/{incidente_id}/adjuntos", response_model=List[schemas.AdjuntoResponse])
+def listar_adjuntos(incidente_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
+    return db.query(models.Adjunto).filter(models.Adjunto.incidente_id == incidente_id).all()
+
+@app.post("/incidentes/{incidente_id}/adjuntos", response_model=schemas.AdjuntoResponse)
+def subir_adjunto(
+    incidente_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))
+):
+    ext = Path(file.filename).suffix
+    nombre_unico = f"{incidente_id}_{int(datetime.now().timestamp())}{ext}"
+    ruta = UPLOAD_DIR / nombre_unico
+    with open(ruta, "wb") as f:
+        f.write(file.file.read())
+    adj = models.Adjunto(incidente_id=incidente_id, filename=file.filename, filepath=str(ruta))
+    db.add(adj)
+    db.commit()
+    db.refresh(adj)
+    return adj
+
+@app.delete("/adjuntos/{adjunto_id}")
+def eliminar_adjunto(adjunto_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
+    adj = db.query(models.Adjunto).filter(models.Adjunto.id == adjunto_id).first()
+    if not adj:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    if os.path.exists(adj.filepath):
+        os.remove(adj.filepath)
+    db.delete(adj)
+    db.commit()
+    return {"ok": True}
+
+@app.get("/adjuntos/{adjunto_id}/descargar")
+def descargar_adjunto(adjunto_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
+    adj = db.query(models.Adjunto).filter(models.Adjunto.id == adjunto_id).first()
+    if not adj or not os.path.exists(adj.filepath):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    return FileResponse(adj.filepath, filename=adj.filename)
+
+# ==============================
+# NOTIFICACIONES EMAIL
+# ==============================
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASS = os.getenv("SMTP_PASS", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "noreply@bitacora.local")
+
+def enviar_notificacion_incidente(incidente, db: Session):
+    if not SMTP_HOST:
+        return
+    try:
+        tecnicos = db.query(models.Usuario).filter(models.Usuario.rol.in_(["admin", "tecnico"])).all()
+        destinatarios = [u.email for u in tecnicos if u.email]
+        if not destinatarios:
+            return
+        msg = MIMEText(
+            f"Nuevo incidente registrado:\n\n"
+            f"ID: {incidente.id}\n"
+            f"Empresa: {incidente.empresa.nombre if incidente.empresa else 'N/A'}\n"
+            f"Aplicación: {incidente.aplicacion.nombre if incidente.aplicacion else 'N/A'}\n"
+            f"Duración: {incidente.duracion_minutos} min\n"
+            f"Motivo: {incidente.motivo or 'N/A'}\n"
+            f"Registrado por: {incidente.usuario.username if incidente.usuario else 'N/A'}"
+        )
+        msg["Subject"] = f"[Bitácora] Nuevo incidente #{incidente.id}"
+        msg["From"] = EMAIL_FROM
+        msg["To"] = ", ".join(destinatarios)
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            if SMTP_USER:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(EMAIL_FROM, destinatarios, msg.as_string())
+        logger.info(f"Notificación enviada a {len(destinatarios)} destinatarios")
+    except Exception as e:
+        logger.error(f"Error al enviar email: {e}")
 
 # ==============================
 # AI INTELLIGENT AGENT ENDPOINTS
@@ -754,7 +865,7 @@ def analizar_incidente_ia(
         empresa_restrictive_rule = f"IMPORTANTE: El usuario actual es un técnico limitado a la empresa con ID {empresa_fijada_id}. Por lo tanto, el empresa_id DEBE ser {empresa_fijada_id}."
 
     system_instruction = f"""
-    Eres un asistente experto de soporte TI y redes. Tu tarea es analizar un reporte de caída de servicio / indisponibilidad escrito en lenguaje natural y estructurarlo en un objeto JSON correspondiente a un incidente.
+    Eres Bita, el asistente inteligente de la aplicación. Tu tarea es analizar un reporte de caída de servicio / indisponibilidad escrito en lenguaje natural y estructurarlo en un objeto JSON correspondiente a un incidente.
     
     Fecha y hora de referencia actual del servidor: {fecha_actual_iso}
     
@@ -865,8 +976,17 @@ def analizar_incidente_ia(
                 "max_tokens": 2000
             }
             result = openai_request("chat/completions", body, api_key, base_url)
-            content = result["choices"][0]["message"]["content"]
-            parsed_data = json.loads(content)
+            raw_content = result["choices"][0]["message"].get("content", "")
+            if not raw_content or raw_content.isspace():
+                raise RuntimeError("La IA devolvió una respuesta vacía")
+            try:
+                parsed_data = json.loads(raw_content)
+            except json.JSONDecodeError:
+                m = re.search(r'\{.*\}', raw_content, re.DOTALL)
+                if m:
+                    parsed_data = json.loads(m.group())
+                else:
+                    parsed_data = {"empresa_id": None}
         
         # Validación extra: si el técnico tiene empresa_id, forzarlo
         if empresa_fijada_id:
@@ -926,7 +1046,7 @@ def chat_asesor_ia(
 
     # 4. Diseñar System Instruction para clasificar y responder
     system_instruction = f"""
-    Eres 'Asesor IA', un asistente inteligente e integrado en el sistema de gestión de indisponibilidades 'Bitácora GDO'. Tu rol es doble:
+    Eres Bita, el asistente inteligente y amigable de esta aplicación. Tu personalidad es servicial, cálida y conversacional, como un colega experto que siempre está dispuesto a ayudar. Además de ser una enciclopedia de soporte TI, puedes conversar sobre temas generales de tecnología, responder preguntas cotidianas y asistir en cualquier duda sobre el funcionamiento de la app. Tus roles principales son:
     
     1. ASESOR TÉCNICO Y DE HISTÓRICOS (RAG):
        - Si el usuario te hace preguntas sobre errores técnicos (ej: error 502, falla de enlace, etc.) o consultas sobre el histórico de caídas, revisa el HISTORIAL DE INCIDENTES DEL SISTEMA provisto abajo.
@@ -1076,8 +1196,17 @@ def chat_asesor_ia(
                 "max_tokens": 4000
             }
             result = openai_request("chat/completions", body, api_key, base_url)
-            content = result["choices"][0]["message"]["content"]
-            parsed_res = json.loads(content)
+            raw_content = result["choices"][0]["message"].get("content", "")
+            if not raw_content or raw_content.isspace():
+                raise RuntimeError("La IA devolvió una respuesta vacía")
+            try:
+                parsed_res = json.loads(raw_content)
+            except json.JSONDecodeError:
+                m = re.search(r'\{.*\}', raw_content, re.DOTALL)
+                if m:
+                    parsed_res = json.loads(m.group())
+                else:
+                    parsed_res = {"response": raw_content, "incident_detected": False, "extracted_data": None}
         
         # Forzar empresa_id del técnico
         if parsed_res.get("incident_detected") and parsed_res.get("extracted_data") and empresa_fijada_id:

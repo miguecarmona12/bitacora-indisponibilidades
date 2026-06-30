@@ -4,7 +4,7 @@ import { bitacoraService, authService } from '../services/api';
 import {
   Calendar, Clock, FileText, AlertTriangle, AlertCircle,
   ChevronLeft, ChevronRight, Pencil, Trash2, X,
-  Plus, Zap, CheckCircle2, Hash
+  Plus, Zap, CheckCircle2, Hash, Download
 } from 'lucide-react';
 
 /* ─── Estilos globales ─────────────────────────────────────────────────────── */
@@ -215,12 +215,16 @@ const Bitacora = () => {
   const [error,            setError]             = useState(null);
   const [successFlash,     setSuccessFlash]      = useState(false);
   const [productSearch,    setProductSearch]     = useState('');
+  const [adjuntos,         setAdjuntos]          = useState([]);
+  const [subiendoAdjunto,  setSubiendoAdjunto]   = useState(false);
 
   const [filterEmpresa,    setFilterEmpresa]     = useState('');
   const [filterAplicacion, setFilterAplicacion]  = useState('');
   const [filterProducto,   setFilterProducto]    = useState('');
   const [filterTipo,       setFilterTipo]        = useState('');
   const [filterOrigen,     setFilterOrigen]      = useState('');
+  const [filterFechaDesde, setFilterFechaDesde]  = useState('');
+  const [filterFechaHasta, setFilterFechaHasta]  = useState('');
 
   const itemsPerPage = 15;
 
@@ -240,7 +244,13 @@ const Bitacora = () => {
     setLoading(true); setError(null);
     try {
       const [i, p, c, a, e] = await Promise.all([
-        bitacoraService.getIncidentes(),
+        bitacoraService.getIncidentes({
+          fecha_desde: filterFechaDesde || undefined,
+          fecha_hasta: filterFechaHasta || undefined,
+          empresa_id: filterEmpresa || undefined,
+          aplicacion_id: filterAplicacion || undefined,
+          producto_id: filterProducto || undefined,
+        }),
         bitacoraService.getProductos(),
         bitacoraService.getCategorias(),
         bitacoraService.getAplicaciones(),
@@ -252,6 +262,20 @@ const Bitacora = () => {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+    if (empresas.length > 0 && formData.empresa_ids.length === 0) {
+      setFormData(prev => ({ ...prev, empresa_ids: empresas.map(e => e.id) }));
+    }
+  }, [empresas]);
+
+  useEffect(() => { fetchData(); }, [filterEmpresa, filterAplicacion, filterProducto, filterFechaDesde, filterFechaHasta]);
+
+  useEffect(() => {
+    if (editingIncidente) {
+      bitacoraService.getAdjuntos(editingIncidente.id).then(setAdjuntos).catch(() => setAdjuntos([]));
+    }
+  }, [editingIncidente]);
 
   // Recalcular duración para la creación
   useEffect(() => {
@@ -287,10 +311,12 @@ const Bitacora = () => {
   /* ── Submit nuevo ──────────────────────────────────────────────────────── */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const hasAny = formData.empresa_ids.length > 0 || formData.aplicacion_ids.length > 0
-      || formData.categoria_ids.length > 0 || formData.producto_ids.length > 0;
-    if (!hasAny || !formData.duracion_minutos) {
-      toast.warning('Selecciona al menos un elemento afectado y la duración.');
+    if (!formData.duracion_minutos || parseFloat(formData.duracion_minutos) <= 0) {
+      toast.warning('La duración debe ser mayor a 0. Ajusta las fechas de inicio y fin.');
+      return;
+    }
+    if (!formData.empresa_ids.length && !formData.aplicacion_ids.length && !formData.categoria_ids.length && !formData.producto_ids.length) {
+      toast.warning('Selecciona al menos una empresa, aplicación, categoría o producto.');
       return;
     }
     setSubmitting(true);
@@ -322,8 +348,8 @@ const Bitacora = () => {
             empresa_id: empId, aplicacion_id: appId,
             categoria_id: c.catId, producto_id: c.prodId,
             duracion_minutos: parseFloat(formData.duracion_minutos),
-            fecha_inicio: new Date(formData.fecha_inicio).toISOString(),
-            fecha_fin: formData.fecha_fin ? new Date(formData.fecha_fin).toISOString() : null,
+            fecha_inicio: formData.fecha_inicio ? formData.fecha_inicio + ':00' : null,
+            fecha_fin: formData.fecha_fin ? formData.fecha_fin + ':00' : null,
             motivo: formData.motivo, solucion: formData.solucion,
             ticket: formData.ticket, mes_reporte: formData.mes_reporte,
             tipo_afectacion: formData.tipo_afectacion,
@@ -338,7 +364,7 @@ const Bitacora = () => {
       setProductSearch('');
       setCurrentPage(1);
       fetchData();
-    } catch { toast.error('Error al registrar incidencia.'); }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al registrar incidencia.'); }
     finally { setSubmitting(false); }
   };
 
@@ -351,8 +377,8 @@ const Bitacora = () => {
         aplicacion_id:    editFormData.aplicacion_id ? parseInt(editFormData.aplicacion_id) : null,
         categoria_id:     editFormData.categoria_id  ? parseInt(editFormData.categoria_id)  : null,
         producto_id:      editFormData.producto_id   ? parseInt(editFormData.producto_id)   : null,
-        fecha_inicio:     editFormData.fecha_inicio  ? new Date(editFormData.fecha_inicio).toISOString() : null,
-        fecha_fin:        editFormData.fecha_fin     ? new Date(editFormData.fecha_fin).toISOString() : null,
+        fecha_inicio:     editFormData.fecha_inicio  ? editFormData.fecha_inicio + ':00' : null,
+        fecha_fin:        editFormData.fecha_fin     ? editFormData.fecha_fin + ':00' : null,
         duracion_minutos: parseFloat(editFormData.duracion_minutos),
         motivo: editFormData.motivo, solucion: editFormData.solucion, ticket: editFormData.ticket,
         tipo_afectacion: editFormData.tipo_afectacion,
@@ -476,9 +502,6 @@ const Bitacora = () => {
 
   /* ── Paginación ────────────────────────────────────────────────────────── */
   const filteredIncidentes = incidentes.filter(inc => {
-    if (filterEmpresa && inc.empresa_id !== parseInt(filterEmpresa)) return false;
-    if (filterAplicacion && inc.aplicacion_id !== parseInt(filterAplicacion)) return false;
-    if (filterProducto && inc.producto_id !== parseInt(filterProducto)) return false;
     if (filterTipo && inc.tipo_afectacion !== filterTipo) return false;
     if (filterOrigen && inc.origen_afectacion !== filterOrigen) return false;
     return true;
@@ -779,14 +802,15 @@ const Bitacora = () => {
                   <p className="text-xs text-gray-400 mt-0.5">Ordenado por fecha, más reciente primero</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  {(filterEmpresa || filterAplicacion || filterProducto || filterTipo || filterOrigen) && (
+                  <button onClick={() => bitacoraService.exportIncidentes()} className="bita-btn-primary text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white border-none cursor-pointer hover:opacity-90 transition">
+                    <Download size={13} /> Excel
+                  </button>
+                  {(filterEmpresa || filterAplicacion || filterProducto || filterTipo || filterOrigen || filterFechaDesde || filterFechaHasta) && (
                     <button
                       onClick={() => {
-                        setFilterEmpresa('');
-                        setFilterAplicacion('');
-                        setFilterProducto('');
-                        setFilterTipo('');
-                        setFilterOrigen('');
+                        setFilterEmpresa(''); setFilterAplicacion(''); setFilterProducto('');
+                        setFilterTipo(''); setFilterOrigen('');
+                        setFilterFechaDesde(''); setFilterFechaHasta('');
                       }}
                       className="text-xs text-violet-600 hover:text-violet-800 font-semibold underline underline-offset-2 bg-transparent border-none cursor-pointer"
                     >
@@ -800,68 +824,61 @@ const Bitacora = () => {
               </div>
 
               {/* Filtros */}
-              <div className="px-6 py-4 bg-violet-50/20 border-b border-violet-100/40 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                {/* Filtro Empresa */}
+              <div className="px-6 py-4 bg-violet-50/20 border-b border-violet-100/40 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5">
+                {/* Fecha Desde */}
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Empresa / Red</label>
-                  <select
-                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    value={filterEmpresa}
-                    onChange={e => setFilterEmpresa(e.target.value)}
-                  >
-                    <option value="">Todos</option>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Desde</label>
+                  <input type="date" className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterFechaDesde} onChange={e => setFilterFechaDesde(e.target.value)} />
+                </div>
+                {/* Fecha Hasta */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Hasta</label>
+                  <input type="date" className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterFechaHasta} onChange={e => setFilterFechaHasta(e.target.value)} />
+                </div>
+                {/* Empresa */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Empresa</label>
+                  <select className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterEmpresa} onChange={e => setFilterEmpresa(e.target.value)}>
+                    <option value="">Todas</option>
                     {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                   </select>
                 </div>
-
-                {/* Filtro Aplicación */}
+                {/* Aplicación */}
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Aplicación</label>
-                  <select
-                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    value={filterAplicacion}
-                    onChange={e => setFilterAplicacion(e.target.value)}
-                  >
+                  <select className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterAplicacion} onChange={e => setFilterAplicacion(e.target.value)}>
                     <option value="">Todas</option>
                     {aplicaciones.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
                   </select>
                 </div>
-
-                {/* Filtro Producto */}
+                {/* Producto */}
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Producto</label>
-                  <select
-                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    value={filterProducto}
-                    onChange={e => setFilterProducto(e.target.value)}
-                  >
+                  <select className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterProducto} onChange={e => setFilterProducto(e.target.value)}>
                     <option value="">Todos</option>
                     {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>
-
-                {/* Filtro Tipo Afectación */}
+                {/* Tipo Afectación */}
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Afectación</label>
-                  <select
-                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    value={filterTipo}
-                    onChange={e => setFilterTipo(e.target.value)}
-                  >
-                    <option value="">Todos</option>
+                  <select className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterTipo} onChange={e => setFilterTipo(e.target.value)}>
+                    <option value="">Todas</option>
                     <option value="Caída Total">Caída Total</option>
                     <option value="Intermitencia">Intermitencia</option>
                   </select>
                 </div>
-
-                {/* Filtro Origen Afectación */}
+                {/* Origen */}
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Origen</label>
-                  <select
-                    className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
-                    value={filterOrigen}
-                    onChange={e => setFilterOrigen(e.target.value)}
-                  >
+                  <select className="bita-input w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white"
+                    value={filterOrigen} onChange={e => setFilterOrigen(e.target.value)}>
                     <option value="">Todos</option>
                     <option value="Aliado / Tercero">Aliado / Tercero</option>
                     <option value="Interna">Interna</option>
@@ -984,8 +1001,8 @@ const Bitacora = () => {
                                         setEditFormData({
                                           empresa_id: inc.empresa_id || '', aplicacion_id: inc.aplicacion_id || '',
                                           categoria_id: inc.categoria_id || '', producto_id: inc.producto_id || '',
-                                          fecha_inicio: inc.fecha_inicio ? new Date(new Date(inc.fecha_inicio).getTime() - new Date(inc.fecha_inicio).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
-                                          fecha_fin: inc.fecha_fin ? new Date(new Date(inc.fecha_fin).getTime() - new Date(inc.fecha_fin).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+                                           fecha_inicio: inc.fecha_inicio ? inc.fecha_inicio.slice(0, 16) : '',
+                                           fecha_fin: inc.fecha_fin ? inc.fecha_fin.slice(0, 16) : '',
                                           duracion_minutos: inc.duracion_minutos,
                                           motivo: inc.motivo || '', solucion: inc.solucion || '', ticket: inc.ticket || '',
                                           tipo_afectacion: inc.tipo_afectacion || 'Caída Total',
@@ -1213,6 +1230,44 @@ const Bitacora = () => {
                     onChange={e => setEditFormData(f => ({ ...f, solucion: e.target.value }))} />
                 </div>
               </form>
+
+              {/* Adjuntos */}
+              <div className="mt-4 pt-4 border-t border-violet-100/40">
+                <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-2">Archivos adjuntos</label>
+                {adjuntos.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {adjuntos.map(adj => (
+                      <div key={adj.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-50 border border-violet-100 text-xs">
+                        <span className="text-gray-700 font-medium truncate max-w-[120px]">{adj.filename}</span>
+                        <button onClick={async () => {
+                          try {
+                            await bitacoraService.eliminarAdjunto(adj.id);
+                            setAdjuntos(prev => prev.filter(a => a.id !== adj.id));
+                            toast.success('Archivo eliminado');
+                          } catch { toast.error('Error al eliminar'); }
+                        }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2 }}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 text-xs font-semibold text-gray-500 cursor-pointer hover:border-violet-400 hover:text-violet-600 transition-colors">
+                  <input type="file" className="hidden" disabled={subiendoAdjunto}
+                    onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setSubiendoAdjunto(true);
+                      try {
+                        const adj = await bitacoraService.subirAdjunto(editingIncidente.id, file);
+                        setAdjuntos(prev => [...prev, adj]);
+                        toast.success('Archivo subido');
+                      } catch { toast.error('Error al subir archivo'); }
+                      finally { setSubiendoAdjunto(false); e.target.value = ''; }
+                    }} />
+                  {subiendoAdjunto ? 'Subiendo...' : '+ Adjuntar archivo'}
+                </label>
+              </div>
             </div>
 
             {/* Footer */}

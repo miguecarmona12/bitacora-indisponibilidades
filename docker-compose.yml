@@ -9,6 +9,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: bitacora
+      TZ: America/Bogota
     ports:
       - "5432:5432"
     volumes:
@@ -30,6 +31,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      TZ: America/Bogota
       DATABASE_URL: postgresql://postgres:postgres@db:5432/bitacora
       RESET_ADMIN_PASSWORD: ${RESET_ADMIN_PASSWORD:-false}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
@@ -39,6 +41,11 @@ services:
       AI_BASE_URL: ${AI_BASE_URL}
       AI_MODEL: ${AI_MODEL:-gpt-3.5-turbo}
       FRONTEND_URL: https://bita.ux.local,http://localhost:5173
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@bitacora.local}
     volumes:
       - ./backend:/app
     networks:
@@ -59,6 +66,7 @@ services:
     ports:
       - "5173:5173"
     environment:
+      TZ: America/Bogota
       # Allow overriding at deploy time by setting the VITE_API_URL env var
       VITE_API_URL: ${VITE_API_URL:-https://bita-backend.ux.local}
     networks:

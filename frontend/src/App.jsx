@@ -13,6 +13,7 @@ import { authService } from './services/api';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Bitacora = lazy(() => import('./pages/Bitacora'));
 const Configuracion = lazy(() => import('./pages/Configuracion'));
+const Ajustes = lazy(() => import('./pages/Ajustes'));
 const Login = lazy(() => import('./pages/Login'));
 const Usuarios = lazy(() => import('./pages/Usuarios'));
 const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword'));
@@ -73,6 +74,7 @@ function App() {
                     <Route path="/bitacora" element={<PrivateRoute requireRole="tecnico"><Bitacora /></PrivateRoute>} />
                     <Route path="/configuracion" element={<PrivateRoute requireRole="admin"><Configuracion /></PrivateRoute>} />
                     <Route path="/usuarios" element={<PrivateRoute requireRole="admin"><Usuarios /></PrivateRoute>} />
+                    <Route path="/ajustes" element={<PrivateRoute requireRole="admin"><Ajustes /></PrivateRoute>} />
                   </Routes>
                 </Suspense>
                 <AIChatWidget />

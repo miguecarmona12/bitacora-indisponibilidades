@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Settings, LayoutDashboard, Users, LogOut, Menu, X, Sun, Moon } from 'lucide-react';
+import { Activity, Settings, LayoutDashboard, Users, LogOut, Menu, X, Sun, Moon, HelpCircle, Sliders } from 'lucide-react';
 import { authService } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 
@@ -23,6 +23,7 @@ const Navbar = () => {
     { path: '/bitacora', name: 'Bitácora', icon: <Activity size={20} />, roles: ['admin', 'tecnico'] },
     { path: '/configuracion', name: 'Catálogos', icon: <Settings size={20} />, roles: ['admin'] },
     { path: '/usuarios', name: 'Usuarios', icon: <Users size={20} />, roles: ['admin'] },
+    { path: '/ajustes', name: 'Ajustes', icon: <Sliders size={20} />, roles: ['admin'] },
   ];
 
   const visibleItems = navItems.filter(item => item.roles.includes(user.rol));
@@ -56,9 +57,12 @@ const Navbar = () => {
           </div>
           
           <div className="hidden lg:flex items-center gap-3">
-             <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors" style={{ color: 'var(--text-2)' }} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
-               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-             </button>
+              <button onClick={() => window.dispatchEvent(new CustomEvent('start-tour'))} className="p-2 rounded-lg transition-colors" style={{ color: 'var(--text-2)' }} title="Ayuda">
+                <HelpCircle size={18} />
+              </button>
+              <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors" style={{ color: 'var(--text-2)' }} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
+                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
              <div className="flex flex-col items-end mr-4 border-r pr-4" style={{ borderColor: 'var(--border)' }}>
                 <span className="text-sm font-semibold" style={{ color: 'var(--text-1)' }}>{user.username}</span>
                 <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wide">
@@ -108,6 +112,9 @@ const Navbar = () => {
           </div>
           <div className="pt-4 pb-4" style={{ borderTop: '1px solid var(--border)' }}>
             <div className="flex items-center px-4">
+              <button onClick={() => window.dispatchEvent(new CustomEvent('start-tour'))} className="mr-1 p-2 rounded-lg transition-colors" style={{ color: 'var(--text-2)' }} title="Ayuda">
+                <HelpCircle size={18} />
+              </button>
               <button onClick={toggleTheme} className="mr-3 p-2 rounded-lg transition-colors" style={{ color: 'var(--text-2)' }} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
                 {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
               </button>

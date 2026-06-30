@@ -1,32 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { X, ChevronRight, ChevronLeft, HelpCircle } from 'lucide-react';
 import { authService } from '../services/api';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 const STEPS = [
-  { title: 'Dashboard', desc: 'Aquí ves estadísticas clave: total de caídas, minutos de inactividad, apps afectadas y gráficos por producto.', selector: '[class*="d-chart-card"]' },
-  { title: 'Bitácora', desc: 'Registra incidentes nuevos con todos los detalles: empresa, aplicación, fechas, motivo y solución.', selector: '[class*="bita-root"]' },
-  { title: 'Filtros', desc: 'Usa los filtros para buscar incidentes por empresa, aplicación, rango de fechas y más.', selector: '[class*="d-filters"]' },
-  { title: 'Chat IA', desc: 'Reporta incidentes en lenguaje natural. Ej: "Caída de Claro por 40 min en Banca Móvil"', selector: '[class*="chat-"]' },
+  { title: 'Dashboard', desc: 'Aquí ves estadísticas clave: total de caídas, minutos de inactividad, apps afectadas y gráficos por producto.', route: '/' },
+  { title: 'Bitácora', desc: 'Registra incidentes nuevos con todos los detalles: empresa, aplicación, fechas, motivo y solución.', route: '/bitacora' },
+  { title: 'Catálogos', desc: 'Administra empresas, aplicaciones, categorías y productos.', route: '/configuracion' },
+  { title: 'Chat IA', desc: 'Reporta incidentes en lenguaje natural. Ej: "Caída de Claro por 40 min en Banca Móvil".', route: null },
 ];
+
+const TOUR_KEY = 'onboarding_done';
 
 const OnboardingTour = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const flags = useFeatureFlags();
   const [step, setStep] = useState(0);
   const [visible, setVisible] = useState(false);
   const user = authService.getCurrentUser();
-  const done = localStorage.getItem('onboarding_done');
 
   useEffect(() => {
-    if (user.token && !done) { const t = setTimeout(() => setVisible(true), 800); return () => clearTimeout(t); }
-  }, [user.token, done]);
+    const onStart = () => {
+      localStorage.removeItem(TOUR_KEY);
+      setStep(0);
+      setVisible(true);
+      navigate('/');
+    };
+    window.addEventListener('start-tour', onStart);
+    return () => window.removeEventListener('start-tour', onStart);
+  }, [navigate]);
 
-  if (!user.token || location.pathname === '/login') return null;
+  useEffect(() => {
+    if (user.token && !localStorage.getItem(TOUR_KEY)) {
+      const t = setTimeout(() => setVisible(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [user.token]);
 
-  if (!visible) return null;
+  if (!visible || !user.token || location.pathname === '/login' || !flags.onboarding) return null;
 
   const s = STEPS[step];
-  const handleFinish = () => { localStorage.setItem('onboarding_done', 'true'); setVisible(false); };
+  const handleFinish = () => { localStorage.setItem(TOUR_KEY, 'true'); setVisible(false); };
+
+  const handleNext = () => {
+    if (step < STEPS.length - 1) {
+      const next = STEPS[step + 1];
+      setStep(s => s + 1);
+      if (next.route) navigate(next.route);
+    }
+  };
+
+  const handlePrev = () => {
+    if (step > 0) {
+      const prev = STEPS[step - 1];
+      setStep(s => s - 1);
+      if (prev.route) navigate(prev.route);
+    }
+  };
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -43,12 +75,12 @@ const OnboardingTour = () => {
           <button onClick={handleFinish} style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Saltar</button>
           <div style={{ display: 'flex', gap: 8 }}>
             {step > 0 && (
-              <button onClick={() => setStep(s => s - 1)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-1)', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>
+              <button onClick={handlePrev} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--text-1)', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>
                 <ChevronLeft size={14} /> Atrás
               </button>
             )}
             {step < STEPS.length - 1 ? (
-              <button onClick={() => setStep(s => s + 1)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--violet)', color: 'white', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>
+              <button onClick={handleNext} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--violet)', color: 'white', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>
                 Siguiente <ChevronRight size={14} />
               </button>
             ) : (
@@ -62,5 +94,7 @@ const OnboardingTour = () => {
     </div>
   );
 };
+
+export const startTour = () => window.dispatchEvent(new CustomEvent('start-tour'));
 
 export default OnboardingTour;

@@ -73,7 +73,7 @@ def init_db():
                         __tablename__ = "example"
                         id = Column(Integer, primary_key=True, index=True)
                         name = Column(String, unique=True, index=True)
-                        created_at = Column(DateTime, default=datetime.utcnow)
+                        created_at = Column(DateTime, default=datetime.now)
                 
                 # Crear todas las tablas
                 Base.metadata.create_all(bind=engine)

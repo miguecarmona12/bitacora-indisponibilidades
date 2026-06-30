@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { bitacoraService, authService } from '../services/api';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 const CHAT_DARK_STYLES = `
   .dark .chat-window { background: #1a1a2e !important; border-color: #2e2e4e !important; }
   .dark .chat-msgs { background: #14141f !important; }
@@ -26,7 +27,7 @@ const CHAT_DARK_STYLES = `
 
 const AIChatWidget = () => {
   const location = useLocation();
-  if (location.pathname === '/login') return null;
+  const flags = useFeatureFlags();
 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -34,7 +35,6 @@ const AIChatWidget = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   
-  // Catálogos locales para mostrar nombres en lugar de IDs en la previsualización
   const chatEndRef = useRef(null);
   const currentUser = authService.getCurrentUser();
 
@@ -58,7 +58,7 @@ const AIChatWidget = () => {
     setMessages([
       {
         role: 'model',
-        content: `¡Hola ${currentUser.username}! 👋 Soy tu **Asesor de IA GDO**.\n\nPuedo ayudarte en dos cosas:\n1. **Registrar incidentes rápido**: Escribe un reporte en lenguaje natural (ej: *"Caída de Claro por 40 min hoy a las 10 am en Banca Móvil por falla de fibra. Se solucionó reiniciando el enrutador"*).\n2. **Asesoría técnica**: Pregúntame sobre soluciones anteriores o consultas de soporte general.`,
+        content: `¡Hola ${currentUser.username}! 👋 Soy **Bita**, tu asistente inteligente.\n\nPuedo ayudarte con varias cosas:\n1. **Registrar incidentes rápido**: Escribe un reporte en lenguaje natural (ej: *"Caída de Claro por 40 min hoy a las 10 am en Banca Móvil por falla de fibra. Se solucionó reiniciando el enrutador"*).\n2. **Asesoría técnica**: Pregúntame sobre soluciones anteriores o consultas de soporte general.\n3. **Lo que necesites**: Conversemos sobre tecnología, dudas de la app o lo que se te ocurra.`,
         incident_detected: false,
         extracted_data: null
       }
@@ -152,7 +152,7 @@ const AIChatWidget = () => {
   const getNombreCategoria = (id) => catalogos.categorias.find(c => c.id === id)?.nombre || `ID: ${id}`;
   const getNombreProducto = (id) => catalogos.productos.find(p => p.id === id)?.nombre || `ID: ${id}`;
 
-  // El asistente solo se muestra para administradores y técnicos (analistas), no para clientes
+  if (location.pathname === '/login' || !flags.chat_ia) return null;
   if (!currentUser.token || currentUser.rol === 'cliente') return null;
 
   return (
@@ -178,7 +178,7 @@ const AIChatWidget = () => {
                 <Sparkles size={20} className="text-amber-300 animate-pulse" />
               </div>
               <div>
-                <h3 className="font-bold text-sm tracking-wide">Asesor GDO Inteligente</h3>
+                <h3 className="font-bold text-sm tracking-wide">Bita — Asistente IA</h3>
                   <span className="text-[10px] text-white/80 font-semibold uppercase tracking-widest flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
                     IA Activo
@@ -202,7 +202,7 @@ const AIChatWidget = () => {
                   {msg.role === 'user' ? (
                     <>Tú <User size={10} /></>
                   ) : (
-                    <><Bot size={10} className="text-violet-600" /> Asesor IA</>
+                    <><Bot size={10} className="text-violet-600" /> Bita</>
                   )}
                 </span>
 
@@ -382,7 +382,7 @@ const AIChatWidget = () => {
             {isLoading && (
               <div className="flex flex-col items-start">
                 <span className="text-[10px] text-gray-400 mb-1 px-1 flex items-center gap-1">
-                  <Bot size={10} className="text-violet-600" /> Asesor IA
+                  <Bot size={10} className="text-violet-600" /> Bita
                 </span>
                 <div className="bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-2">
                   <span className="flex space-x-1">

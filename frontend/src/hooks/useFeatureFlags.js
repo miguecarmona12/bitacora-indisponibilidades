@@ -3,9 +3,6 @@ import { bitacoraService } from '../services/api';
 
 const defaults = {
   chat_ia: true,
-  analisis_predictivo: true,
-  timeline: true,
-  resumen_semanal: true,
   onboarding: true,
 };
 

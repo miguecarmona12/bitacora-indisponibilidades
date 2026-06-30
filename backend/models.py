@@ -72,7 +72,7 @@ class Incidente(Base):
     categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
     producto_id = Column(Integer, ForeignKey("productos.id"), nullable=True)
     
-    fecha_inicio = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_inicio = Column(DateTime, default=datetime.datetime.now)
     fecha_fin = Column(DateTime, nullable=True)
     duracion_minutos = Column(Float, nullable=False) # Duración de la caída
     motivo = Column(Text, nullable=True) # Razón o comentario adicional de la caída
@@ -94,10 +94,19 @@ class TokenBlacklist(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     token = Column(String(500), unique=True, index=True, nullable=False)
-    agregado_en = Column(DateTime, default=datetime.datetime.utcnow)
+    agregado_en = Column(DateTime, default=datetime.datetime.now)
 
 class FeatureFlag(Base):
     __tablename__ = "feature_flags"
     id = Column(Integer, primary_key=True, index=True)
     flag = Column(String(100), unique=True, nullable=False)
     activo = Column(Boolean, default=False)
+
+class Adjunto(Base):
+    __tablename__ = "adjuntos"
+    id = Column(Integer, primary_key=True, index=True)
+    incidente_id = Column(Integer, ForeignKey("incidentes.id", ondelete="CASCADE"), nullable=False)
+    filename = Column(String(255), nullable=False)
+    filepath = Column(String(500), nullable=False)
+    uploaded_at = Column(DateTime, default=datetime.datetime.now)
+    incidente = relationship("Incidente", backref="adjuntos")

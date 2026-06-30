@@ -173,9 +173,15 @@ export const bitacoraService = {
   },
 
   // Incidentes (Bitácora)
-  getIncidentes: async (mes = null) => {
-    const url = mes ? `/incidentes?mes=${encodeURIComponent(mes)}` : '/incidentes';
-    const response = await api.get(url);
+  getIncidentes: async (filtros = {}) => {
+    const params = new URLSearchParams();
+    if (filtros.fecha_desde) params.append('fecha_desde', filtros.fecha_desde);
+    if (filtros.fecha_hasta) params.append('fecha_hasta', filtros.fecha_hasta);
+    if (filtros.empresa_id) params.append('empresa_id', filtros.empresa_id);
+    if (filtros.aplicacion_id) params.append('aplicacion_id', filtros.aplicacion_id);
+    if (filtros.producto_id) params.append('producto_id', filtros.producto_id);
+    const qs = params.toString();
+    const response = await api.get(`/incidentes${qs ? `?${qs}` : ''}`);
     return response.data;
   },
   createIncidente: async (data) => {
@@ -194,18 +200,45 @@ export const bitacoraService = {
     const response = await api.delete(`/incidentes/${id}`);
     return response.data;
   },
+  exportIncidentes: async () => {
+    const response = await api.get('/incidentes/exportar', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'incidentes.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
   
   // Feature Flags
   getFeatureFlags: async () => {
     const response = await api.get('/feature-flags');
     return response.data;
   },
-  getResumenSemanal: async () => {
-    const response = await api.get('/resumen-semanal');
+  updateFeatureFlag: async (flag, activo) => {
+    const response = await api.put(`/feature-flags/${flag}`, { activo });
     return response.data;
   },
-  getAnalisisPredictivo: async () => {
-    const response = await api.get('/analisis-predictivo');
+
+  // Adjuntos
+  getAdjuntos: async (incidenteId) => {
+    const response = await api.get(`/incidentes/${incidenteId}/adjuntos`);
+    return response.data;
+  },
+  subirAdjunto: async (incidenteId, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await api.post(`/incidentes/${incidenteId}/adjuntos`, form);
+    return response.data;
+  },
+  eliminarAdjunto: async (adjuntoId) => {
+    const response = await api.delete(`/adjuntos/${adjuntoId}`);
+    return response.data;
+  },
+  descargarAdjunto: async (adjuntoId) => {
+    const response = await api.get(`/adjuntos/${adjuntoId}/descargar`, { responseType: 'blob' });
     return response.data;
   },
 

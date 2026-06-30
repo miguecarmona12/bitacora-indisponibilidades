@@ -20,4 +20,3 @@ def test_feature_flags():
     assert isinstance(data, list)
     flags = {f["flag"] for f in data}
     assert "chat_ia" in flags
-    assert "timeline" in flags
