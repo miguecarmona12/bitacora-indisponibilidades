@@ -222,3 +222,8 @@ class AIChatResponse(BaseModel):
     incident_detected: bool  # Indica si se detectó una intención de reportar indisponibilidad
     extracted_data: Optional[IncidenteExtraidoResponse] = None
 
+# --- FEATURE FLAGS ---
+class FeatureFlagResponse(BaseModel):
+    flag: str
+    activo: bool
+

@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Navbar from './components/Navbar';
 import SessionTimeout from './components/SessionTimeout';
+import OnboardingTour from './components/OnboardingTour';
 import AIChatWidget from './components/AIChatWidget';
 import { authService } from './services/api';
 
@@ -60,6 +61,7 @@ function App() {
         <Router>
           <ErrorBoundary>
             <SessionTimeout />
+            <OnboardingTour />
             <div className="w-full min-h-screen flex flex-col font-sans" style={{ backgroundColor: 'var(--surface-2)', color: 'var(--text-1)' }}>
               <Navbar />
               <main className="flex-1 w-full relative">

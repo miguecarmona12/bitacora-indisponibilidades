@@ -82,6 +82,18 @@ try:
 except Exception:
     pass
 
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS feature_flags (
+                id SERIAL PRIMARY KEY,
+                flag VARCHAR(100) UNIQUE NOT NULL,
+                activo BOOLEAN DEFAULT FALSE
+            )
+        """))
+except Exception:
+    pass
+
 # ==============================
 # CREAR ADMIN
 # ==============================
@@ -224,6 +236,89 @@ def health(db: Session = Depends(get_db)):
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database error: {e}")
+
+# ==============================
+# FEATURE FLAGS
+# ==============================
+@app.get("/feature-flags", response_model=List[schemas.FeatureFlagResponse])
+def get_feature_flags(db: Session = Depends(get_db)):
+    flags = db.query(models.FeatureFlag).all()
+    if not flags:
+        defaults = [
+            models.FeatureFlag(flag="chat_ia", activo=True),
+            models.FeatureFlag(flag="analisis_predictivo", activo=True),
+            models.FeatureFlag(flag="timeline", activo=True),
+            models.FeatureFlag(flag="resumen_semanal", activo=True),
+            models.FeatureFlag(flag="onboarding", activo=True),
+        ]
+        for f in defaults: db.add(f)
+        db.commit()
+        flags = defaults
+    return flags
+
+# ==============================
+# RESUMEN SEMANAL
+# ==============================
+@app.get("/resumen-semanal")
+def resumen_semanal(db: Session = Depends(get_db)):
+    hoy = datetime.utcnow()
+    inicio_semana = hoy - timedelta(days=hoy.weekday())
+    incidentes = db.query(models.Incidente).filter(
+        models.Incidente.fecha_inicio >= inicio_semana
+    ).all()
+    total = len(incidentes)
+    if total == 0:
+        return {"total": 0, "mensaje": "No hubo incidentes esta semana"}
+    total_min = sum(i.duracion_minutos or 0 for i in incidentes)
+    apps = {}
+    for i in incidentes:
+        if i.aplicacion and i.aplicacion.nombre:
+            apps[i.aplicacion.nombre] = apps.get(i.aplicacion.nombre, 0) + 1
+    app_peor = max(apps, key=apps.get) if apps else "N/A"
+    dias = {}
+    for i in incidentes:
+        d = i.fecha_inicio.strftime("%A")
+        dias[d] = dias.get(d, 0) + 1
+    dia_pico = max(dias, key=dias.get) if dias else "N/A"
+    return {
+        "total": total,
+        "total_minutos": round(total_min, 1),
+        "app_peor": app_peor,
+        "incidentes_app_peor": apps.get(app_peor, 0),
+        "dia_pico": dia_pico,
+        "promedio_minutos": round(total_min / total, 1) if total else 0,
+    }
+
+# ==============================
+# ANÁLISIS PREDICTIVO
+# ==============================
+@app.get("/analisis-predictivo")
+def analisis_predictivo(db: Session = Depends(get_db)):
+    hace_6m = datetime.utcnow() - timedelta(days=180)
+    incidentes = db.query(models.Incidente).filter(
+        models.Incidente.fecha_inicio >= hace_6m
+    ).all()
+    productos = db.query(models.Producto).all()
+    resultado = []
+    for p in productos:
+        relacionados = [i for i in incidentes if i.producto_id == p.id]
+        if not relacionados:
+            continue
+        frecuencia = len(relacionados)
+        duracion_prom = sum(i.duracion_minutos or 0 for i in relacionados) / frecuencia
+        # Riesgo simple basado en frecuencia histórica
+        riesgo = min(round((frecuencia / max(len(incidentes), 1)) * 100, 1), 100)
+        nivel = "alto" if riesgo > 15 else "medio" if riesgo > 5 else "bajo"
+        resultado.append({
+            "producto_id": p.id,
+            "producto": p.nombre,
+            "frecuencia": frecuencia,
+            "duracion_promedio": round(duracion_prom, 1),
+            "riesgo": riesgo,
+            "nivel": nivel,
+        })
+    resultado.sort(key=lambda x: x["riesgo"], reverse=True)
+    return resultado[:10]
 
 # ==============================
 # LOGIN

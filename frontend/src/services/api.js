@@ -195,6 +195,20 @@ export const bitacoraService = {
     return response.data;
   },
   
+  // Feature Flags
+  getFeatureFlags: async () => {
+    const response = await api.get('/feature-flags');
+    return response.data;
+  },
+  getResumenSemanal: async () => {
+    const response = await api.get('/resumen-semanal');
+    return response.data;
+  },
+  getAnalisisPredictivo: async () => {
+    const response = await api.get('/analisis-predictivo');
+    return response.data;
+  },
+
   // AI Agent services
   enviarChatIA: async (messages) => {
     const response = await api.post('/api/ai/chat', { messages });

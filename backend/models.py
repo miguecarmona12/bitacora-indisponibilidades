@@ -95,3 +95,9 @@ class TokenBlacklist(Base):
     id = Column(Integer, primary_key=True, index=True)
     token = Column(String(500), unique=True, index=True, nullable=False)
     agregado_en = Column(DateTime, default=datetime.datetime.utcnow)
+
+class FeatureFlag(Base):
+    __tablename__ = "feature_flags"
+    id = Column(Integer, primary_key=True, index=True)
+    flag = Column(String(100), unique=True, nullable=False)
+    activo = Column(Boolean, default=False)
