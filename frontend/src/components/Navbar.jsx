@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Settings, LayoutDashboard, Users, LogOut, Menu, X, Sun, Moon, HelpCircle, Sliders, History } from 'lucide-react';
+import { Activity, Settings, LayoutDashboard, Users, LogOut, Menu, X, Sun, Moon, HelpCircle, Sliders } from 'lucide-react';
 import { authService } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import NotificationPanel from './NotificationPanel';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,7 +25,6 @@ const Navbar = () => {
     { path: '/configuracion', name: 'Catálogos', icon: <Settings size={20} />, roles: ['admin'] },
     { path: '/usuarios', name: 'Usuarios', icon: <Users size={20} />, roles: ['admin'] },
     { path: '/ajustes', name: 'Ajustes', icon: <Sliders size={20} />, roles: ['admin'] },
-    { path: '/auditoria', name: 'Auditoría', icon: <History size={20} />, roles: ['admin'] },
   ];
 
   const visibleItems = navItems.filter(item => item.roles.includes(user.rol));
@@ -58,6 +58,7 @@ const Navbar = () => {
           </div>
           
           <div className="hidden lg:flex items-center gap-3">
+              <NotificationPanel />
               <button onClick={() => window.dispatchEvent(new CustomEvent('start-tour'))} className="p-2 rounded-lg transition-colors" style={{ color: 'var(--text-2)' }} title="Ayuda">
                 <HelpCircle size={18} />
               </button>
@@ -144,6 +145,22 @@ const Navbar = () => {
           </div>
         </div>
       )}
+
+      {/* Bottom Navigation (mobile) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-1"
+        style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', boxShadow: '0 -2px 10px rgba(0,0,0,0.05)' }}>
+        {visibleItems.slice(0, 5).map((item) => (
+          <Link
+            key={item.path}
+            to={item.path}
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors min-w-0"
+            style={{ color: location.pathname === item.path ? 'var(--violet, #7c3aed)' : 'var(--text-3)' }}
+          >
+            {React.cloneElement(item.icon, { size: 18 })}
+            <span className="text-[9px] font-semibold leading-none text-center">{item.name}</span>
+          </Link>
+        ))}
+      </div>
     </nav>
   );
 };

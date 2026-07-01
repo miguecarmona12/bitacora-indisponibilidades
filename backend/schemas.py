@@ -96,6 +96,9 @@ class IncidenteBase(BaseModel):
     mes_reporte: str
     tipo_afectacion: Optional[str] = None
     origen_afectacion: Optional[str] = None
+    causa_raiz: Optional[str] = None
+    accion_correctiva: Optional[str] = None
+    estado: Optional[str] = "abierto"
 
 
 class IncidenteUpdate(BaseModel):
@@ -111,6 +114,9 @@ class IncidenteUpdate(BaseModel):
     ticket: str | None = None
     tipo_afectacion: Optional[str] = None
     origen_afectacion: Optional[str] = None
+    causa_raiz: Optional[str] = None
+    accion_correctiva: Optional[str] = None
+    estado: Optional[str] = None
 
 
 class UsuarioBase(BaseModel):
@@ -230,6 +236,20 @@ class FeatureFlagResponse(BaseModel):
 class FeatureFlagUpdate(BaseModel):
     activo: bool
 
+# --- NOTIFICACIONES ---
+class NotificacionResponse(BaseModel):
+    id: int
+    usuario_id: Optional[int] = None
+    tipo: str
+    titulo: str
+    mensaje: Optional[str] = None
+    leida: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class NotificacionCount(BaseModel):
+    count: int
+
 # --- ADJUNTOS ---
 class AdjuntoResponse(BaseModel):
     id: int
@@ -238,15 +258,4 @@ class AdjuntoResponse(BaseModel):
     uploaded_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-# --- AUDITORIA ---
-class AuditoriaResponse(BaseModel):
-    id: int
-    entidad: str
-    entidad_id: Optional[int] = None
-    accion: str
-    usuario_id: Optional[int] = None
-    usuario_nombre: Optional[str] = None
-    detalle: Optional[str] = None
-    fecha: datetime
-    model_config = ConfigDict(from_attributes=True)
 

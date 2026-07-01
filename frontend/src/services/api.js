@@ -21,19 +21,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor para manejar respuestas con error (como 401 Unauthorized)
+// Interceptor para manejar respuestas con error
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Si el token es inválido o expiró, cerramos sesión localmente y redirigimos a login
-      if (!window.location.pathname.includes('/login')) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('rol');
-        localStorage.removeItem('username');
-        localStorage.removeItem('empresa_id');
-        localStorage.removeItem('must_change_password');
-        window.location.href = '/login';
+    if (error.response) {
+      if (error.response.status === 401) {
+        if (!window.location.pathname.includes('/login')) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('rol');
+          localStorage.removeItem('username');
+          localStorage.removeItem('empresa_id');
+          localStorage.removeItem('must_change_password');
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);
@@ -255,13 +256,24 @@ export const bitacoraService = {
     const response = await api.post('/api/ai/registrar', datosIncidente);
     return response.data;
   },
-  getAuditoria: async (params = {}) => {
-    const query = new URLSearchParams();
-    if (params.entidad) query.append('entidad', params.entidad);
-    if (params.entidad_id) query.append('entidad_id', params.entidad_id);
-    if (params.limit) query.append('limit', params.limit);
-    const qs = query.toString();
-    const response = await api.get(`/auditoria${qs ? `?${qs}` : ''}`);
+
+};
+
+export const notificacionService = {
+  getNotificaciones: async () => {
+    const response = await api.get('/notificaciones');
+    return response.data;
+  },
+  getNoLeidas: async () => {
+    const response = await api.get('/notificaciones/no-leidas');
+    return response.data;
+  },
+  marcarLeida: async (id) => {
+    const response = await api.put(`/notificaciones/${id}/leer`);
+    return response.data;
+  },
+  marcarTodasLeidas: async () => {
+    const response = await api.put('/notificaciones/leer-todas');
     return response.data;
   },
 };

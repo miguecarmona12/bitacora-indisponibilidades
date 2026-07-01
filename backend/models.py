@@ -82,6 +82,9 @@ class Incidente(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True) # Quien registró la falla
     tipo_afectacion = Column(String(50), nullable=True)
     origen_afectacion = Column(String(50), nullable=True)
+    causa_raiz = Column(Text, nullable=True)
+    accion_correctiva = Column(Text, nullable=True)
+    estado = Column(String(20), default="abierto")
     
     empresa = relationship("Empresa", back_populates="incidentes")
     aplicacion = relationship("Aplicacion", back_populates="incidentes")
@@ -111,14 +114,14 @@ class Adjunto(Base):
     uploaded_at = Column(DateTime, default=datetime.datetime.now)
     incidente = relationship("Incidente", backref="adjuntos")
 
-class Auditoria(Base):
-    __tablename__ = "auditoria"
+class Notificacion(Base):
+    __tablename__ = "notificaciones"
     id = Column(Integer, primary_key=True, index=True)
-    entidad = Column(String(50), nullable=False, index=True)
-    entidad_id = Column(Integer, nullable=True)
-    accion = Column(String(20), nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
-    usuario_nombre = Column(String(50), nullable=True)
-    detalle = Column(Text, nullable=True)
-    fecha = Column(DateTime, default=datetime.datetime.now, index=True)
+    tipo = Column(String(50), nullable=False)
+    titulo = Column(String(255), nullable=False)
+    mensaje = Column(Text, nullable=True)
+    leida = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.now)
     usuario = relationship("Usuario")
+

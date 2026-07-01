@@ -236,6 +236,7 @@ const Bitacora = () => {
     motivo: '', solucion: '', ticket: '',
     tipo_afectacion: 'Caída Total',
     origen_afectacion: 'Aliado / Tercero',
+    causa_raiz: '', accion_correctiva: '', estado: 'abierto',
     mes_reporte: new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' })
   });
 
@@ -354,13 +355,14 @@ const Bitacora = () => {
             ticket: formData.ticket, mes_reporte: formData.mes_reporte,
             tipo_afectacion: formData.tipo_afectacion,
             origen_afectacion: formData.origen_afectacion,
+            causa_raiz: formData.causa_raiz, accion_correctiva: formData.accion_correctiva, estado: formData.estado,
           }))
         )
       );
       await bitacoraService.createIncidentesBulk(payloads);
       setSuccessFlash(true);
       setTimeout(() => setSuccessFlash(false), 2400);
-      setFormData(f => ({ ...f, duracion_minutos: '', motivo: '', solucion: '', ticket: '' }));
+      setFormData(f => ({ ...f, duracion_minutos: '', motivo: '', solucion: '', ticket: '', causa_raiz: '', accion_correctiva: '', estado: 'abierto' }));
       setProductSearch('');
       setCurrentPage(1);
       fetchData();
@@ -383,6 +385,7 @@ const Bitacora = () => {
         motivo: editFormData.motivo, solucion: editFormData.solucion, ticket: editFormData.ticket,
         tipo_afectacion: editFormData.tipo_afectacion,
         origen_afectacion: editFormData.origen_afectacion,
+        causa_raiz: editFormData.causa_raiz, accion_correctiva: editFormData.accion_correctiva, estado: editFormData.estado,
       });
       setEditingIncidente(null);
       fetchData();
@@ -770,6 +773,42 @@ const Bitacora = () => {
                   </select>
                 </div>
 
+                {/* RCA */}
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    Causa Raíz
+                  </label>
+                  <textarea rows={2} placeholder="Ej: Fallo en balanceador Nginx..."
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
+                    value={formData.causa_raiz}
+                    onChange={e => setFormData(f => ({ ...f, causa_raiz: e.target.value }))} />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    Acción Correctiva
+                  </label>
+                  <textarea rows={2} placeholder="Ej: Se reinició el servicio..."
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
+                    value={formData.accion_correctiva}
+                    onChange={e => setFormData(f => ({ ...f, accion_correctiva: e.target.value }))} />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    Estado *
+                  </label>
+                  <select
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={formData.estado}
+                    onChange={e => setFormData(f => ({ ...f, estado: e.target.value }))}
+                  >
+                    <option value="abierto">Abierto</option>
+                    <option value="en_proceso">En Proceso</option>
+                    <option value="resuelto">Resuelto</option>
+                  </select>
+                </div>
+
                 {/* Mes reporte */}
                 <div>
                   <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Mes de Reporte</label>
@@ -957,6 +996,15 @@ const Bitacora = () => {
                                       {inc.origen_afectacion}
                                     </span>
                                   )}
+                                  {inc.estado && (
+                                    <span className={`bita-badge text-[9px] ${
+                                      inc.estado === 'abierto' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                      inc.estado === 'en_proceso' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                      'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                    }`}>
+                                      {inc.estado === 'abierto' ? 'Abierto' : inc.estado === 'en_proceso' ? 'En Proceso' : 'Resuelto'}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex flex-wrap gap-1">
                                   <span className="bita-badge bg-pink-50    text-pink-700    border border-pink-100">{info.categoria}</span>
@@ -1004,9 +1052,10 @@ const Bitacora = () => {
                                            fecha_inicio: inc.fecha_inicio ? inc.fecha_inicio.slice(0, 16) : '',
                                            fecha_fin: inc.fecha_fin ? inc.fecha_fin.slice(0, 16) : '',
                                           duracion_minutos: inc.duracion_minutos,
-                                          motivo: inc.motivo || '', solucion: inc.solucion || '', ticket: inc.ticket || '',
-                                          tipo_afectacion: inc.tipo_afectacion || 'Caída Total',
-                                          origen_afectacion: inc.origen_afectacion || 'Aliado / Tercero'
+                                           motivo: inc.motivo || '', solucion: inc.solucion || '', ticket: inc.ticket || '',
+                                           tipo_afectacion: inc.tipo_afectacion || 'Caída Total',
+                                           origen_afectacion: inc.origen_afectacion || 'Aliado / Tercero',
+                                           causa_raiz: inc.causa_raiz || '', accion_correctiva: inc.accion_correctiva || '', estado: inc.estado || 'abierto'
                                         });
                                       }}
                                       className="p-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 transition-colors"
@@ -1228,6 +1277,35 @@ const Bitacora = () => {
                     className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
                     value={editFormData.solucion}
                     onChange={e => setEditFormData(f => ({ ...f, solucion: e.target.value }))} />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Causa Raíz</label>
+                  <textarea rows={2}
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
+                    value={editFormData.causa_raiz}
+                    onChange={e => setEditFormData(f => ({ ...f, causa_raiz: e.target.value }))} />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Acción Correctiva</label>
+                  <textarea rows={2}
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
+                    value={editFormData.accion_correctiva}
+                    onChange={e => setEditFormData(f => ({ ...f, accion_correctiva: e.target.value }))} />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5">Estado</label>
+                  <select
+                    className="bita-input w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                    value={editFormData.estado}
+                    onChange={e => setEditFormData(f => ({ ...f, estado: e.target.value }))}
+                  >
+                    <option value="abierto">Abierto</option>
+                    <option value="en_proceso">En Proceso</option>
+                    <option value="resuelto">Resuelto</option>
+                  </select>
                 </div>
               </form>
 

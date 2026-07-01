@@ -39,6 +39,7 @@ const STYLES = `
 const FEATURES = [
   { flag: 'chat_ia', label: 'Chat IA', desc: 'Asistente inteligente para reportar incidentes' },
   { flag: 'onboarding', label: 'Tour de bienvenida', desc: 'Guía interactiva al iniciar sesión' },
+
 ];
 
 const Ajustes = () => {

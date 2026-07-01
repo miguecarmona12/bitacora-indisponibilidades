@@ -103,25 +103,40 @@ except Exception:
 
 try:
     with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE incidentes ADD COLUMN causa_raiz TEXT"))
+except Exception:
+    pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE incidentes ADD COLUMN accion_correctiva TEXT"))
+except Exception:
+    pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE incidentes ADD COLUMN estado VARCHAR(20) DEFAULT 'abierto'"))
+except Exception:
+    pass
+
+try:
+    with engine.begin() as conn:
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS auditoria (
+            CREATE TABLE IF NOT EXISTS notificaciones (
                 id SERIAL PRIMARY KEY,
-                entidad VARCHAR(50) NOT NULL,
-                entidad_id INTEGER,
-                accion VARCHAR(20) NOT NULL,
                 usuario_id INTEGER REFERENCES usuarios(id),
-                usuario_nombre VARCHAR(50),
-                detalle TEXT,
-                fecha TIMESTAMP DEFAULT NOW()
+                tipo VARCHAR(50) NOT NULL,
+                titulo VARCHAR(255) NOT NULL,
+                mensaje TEXT,
+                leida BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
             )
         """))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_auditoria_entidad ON auditoria(entidad)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(fecha)"))
 except Exception:
     pass
 
 # ==============================
-# AUDITORIA + WEBSOCKET
+# WEBSOCKET
 # ==============================
 connected_clients: set[WebSocket] = set()
 event_loop: asyncio.AbstractEventLoop | None = None
@@ -137,17 +152,6 @@ def emit_event(message: dict):
     if event_loop and not event_loop.is_closed():
         asyncio.run_coroutine_threadsafe(broadcast(message), event_loop)
 
-def registrar_auditoria(db: Session, entidad: str, entidad_id: int | None, accion: str, usuario_id: int | None, usuario_nombre: str | None, detalle: dict | None = None):
-    audit = models.Auditoria(
-        entidad=entidad,
-        entidad_id=entidad_id,
-        accion=accion,
-        usuario_id=usuario_id,
-        usuario_nombre=usuario_nombre,
-        detalle=json.dumps(detalle, default=str) if detalle else None
-    )
-    db.add(audit)
-    db.flush()
 
 # ==============================
 # CREAR ADMIN
@@ -273,6 +277,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==============================
+# NOTIFICACIONES HELPER
+# ==============================
+def crear_notificaciones(db: Session, tipo: str, titulo: str, mensaje: str = None):
+    admins = db.query(models.Usuario).filter(models.Usuario.rol == "admin").all()
+    for admin in admins:
+        n = models.Notificacion(usuario_id=admin.id, tipo=tipo, titulo=titulo, mensaje=mensaje)
+        db.add(n)
+    db.flush()
+
 @app.on_event("startup")
 async def startup_event():
     global event_loop
@@ -300,20 +314,6 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         connected_clients.discard(websocket)
 
-@app.get("/auditoria", response_model=List[schemas.AuditoriaResponse])
-def get_auditoria(
-    entidad: Optional[str] = None,
-    entidad_id: Optional[int] = None,
-    limit: int = 50,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(auth.require_role(["admin"]))
-):
-    q = db.query(models.Auditoria)
-    if entidad:
-        q = q.filter(models.Auditoria.entidad == entidad)
-    if entidad_id:
-        q = q.filter(models.Auditoria.entidad_id == entidad_id)
-    return q.order_by(models.Auditoria.fecha.desc()).limit(limit).all()
 
 @app.get("/health")
 def health(db: Session = Depends(get_db)):
@@ -337,6 +337,15 @@ def get_feature_flags(db: Session = Depends(get_db)):
         for f in defaults: db.add(f)
         db.commit()
         flags = defaults
+    else:
+        existing = {f.flag for f in flags}
+        required = {"chat_ia", "onboarding"}
+        missing = required - existing
+        if missing:
+            for flag in missing:
+                db.add(models.FeatureFlag(flag=flag, activo=False))
+            db.commit()
+            flags = db.query(models.FeatureFlag).all()
     return flags
 
 @app.put("/feature-flags/{flag}", response_model=schemas.FeatureFlagResponse)
@@ -350,6 +359,33 @@ def update_feature_flag(flag: str, body: schemas.FeatureFlagUpdate, db: Session 
     db.commit()
     db.refresh(f)
     return f
+
+# ==============================
+# NOTIFICACIONES
+# ==============================
+@app.get("/notificaciones", response_model=List[schemas.NotificacionResponse])
+def get_notificaciones(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    return db.query(models.Notificacion).filter(models.Notificacion.usuario_id == current_user.id).order_by(models.Notificacion.created_at.desc()).limit(50).all()
+
+@app.get("/notificaciones/no-leidas", response_model=schemas.NotificacionCount)
+def notificaciones_no_leidas(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    count = db.query(models.Notificacion).filter(models.Notificacion.usuario_id == current_user.id, models.Notificacion.leida == False).count()
+    return {"count": count}
+
+@app.put("/notificaciones/{notificacion_id}/leer")
+def marcar_leida(notificacion_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    n = db.query(models.Notificacion).filter(models.Notificacion.id == notificacion_id, models.Notificacion.usuario_id == current_user.id).first()
+    if not n:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    n.leida = True
+    db.commit()
+    return {"ok": True}
+
+@app.put("/notificaciones/leer-todas")
+def marcar_todas_leidas(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    db.query(models.Notificacion).filter(models.Notificacion.usuario_id == current_user.id, models.Notificacion.leida == False).update({"leida": True})
+    db.commit()
+    return {"ok": True}
 
 # ==============================
 # LOGIN
@@ -724,7 +760,7 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
     nuevo.usuario_id = current_user.id
     db.add(nuevo)
     db.flush()
-    registrar_auditoria(db, "incidente", nuevo.id, "crear", current_user.id, current_user.username, {"data": incidente.dict()})
+    crear_notificaciones(db, "incidente_creado", f"Incidente #{nuevo.id}", f"{current_user.username} creó un nuevo incidente")
     db.commit()
     db.refresh(nuevo)
     emit_event({"type": "incidente_creado", "id": nuevo.id, "usuario": current_user.username})
@@ -743,7 +779,7 @@ def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Sessio
         n.usuario_id = current_user.id
         db.add(n)
         db.flush()
-        registrar_auditoria(db, "incidente", n.id, "crear", current_user.id, current_user.username, {"data": i.dict()})
+        crear_notificaciones(db, "incidente_creado", f"Incidente #{n.id}", f"{current_user.username} creó un incidente (bulk)")
         nuevos.append(n)
     db.commit()
     for n in nuevos:
@@ -768,7 +804,7 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
     antes = {c.name: getattr(incidente, c.name) for c in incidente.__table__.columns}
     for field, value in datos.dict(exclude_unset=True).items():
         setattr(incidente, field, value)
-    registrar_auditoria(db, "incidente", incidente.id, "actualizar", current_user.id, current_user.username, {"antes": antes, "despues": datos.dict(exclude_unset=True)})
+    crear_notificaciones(db, "incidente_actualizado", f"Incidente #{incidente.id}", f"{current_user.username} actualizó el incidente")
     db.commit()
     db.refresh(incidente)
     emit_event({"type": "incidente_actualizado", "id": incidente.id, "usuario": current_user.username})
@@ -783,8 +819,8 @@ def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_u
         if incidente.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=403, detail="No autorizado para eliminar incidentes de otra empresa")
     entidad_id = incidente.id
+    crear_notificaciones(db, "incidente_eliminado", f"Incidente #{entidad_id}", f"{current_user.username} eliminó el incidente #{entidad_id}")
     db.delete(incidente)
-    registrar_auditoria(db, "incidente", entidad_id, "eliminar", current_user.id, current_user.username)
     db.commit()
     emit_event({"type": "incidente_eliminado", "id": entidad_id, "usuario": current_user.username})
     return {"ok": True}
@@ -808,7 +844,8 @@ def exportar_incidentes(db: Session = Depends(get_db), current_user: models.Usua
     ws.title = "Incidentes"
     ws.append(["ID", "Empresa", "Aplicación", "Categoría", "Producto",
                "Fecha Inicio", "Fecha Fin", "Duración (min)", "Motivo",
-               "Solución", "Ticket", "Tipo Afectación", "Origen", "Usuario"])
+               "Solución", "Ticket", "Tipo Afectación", "Origen", "Usuario",
+               "Causa Raíz", "Acción Correctiva", "Estado"])
 
     for i in incidentes:
         ws.append([
@@ -826,6 +863,9 @@ def exportar_incidentes(db: Session = Depends(get_db), current_user: models.Usua
             i.tipo_afectacion or "",
             i.origen_afectacion or "",
             i.usuario.username if i.usuario else "",
+            i.causa_raiz or "",
+            i.accion_correctiva or "",
+            i.estado or "",
         ])
 
     buf = io.BytesIO()

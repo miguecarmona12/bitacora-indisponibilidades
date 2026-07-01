@@ -15,7 +15,6 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Bitacora = lazy(() => import('./pages/Bitacora'));
 const Configuracion = lazy(() => import('./pages/Configuracion'));
 const Ajustes = lazy(() => import('./pages/Ajustes'));
-const Auditoria = lazy(() => import('./pages/Auditoria'));
 const Login = lazy(() => import('./pages/Login'));
 const Usuarios = lazy(() => import('./pages/Usuarios'));
 const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword'));
@@ -69,7 +68,7 @@ function App() {
             <OnboardingTour />
             <div className="w-full min-h-screen flex flex-col font-sans" style={{ backgroundColor: 'var(--surface-2)', color: 'var(--text-1)' }}>
               <Navbar />
-              <main className="flex-1 w-full relative">
+              <main className="flex-1 w-full relative pb-20 lg:pb-0">
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
                     <Route path="/login" element={<Login />} />
@@ -79,7 +78,6 @@ function App() {
                     <Route path="/configuracion" element={<PrivateRoute requireRole="admin"><Configuracion /></PrivateRoute>} />
                     <Route path="/usuarios" element={<PrivateRoute requireRole="admin"><Usuarios /></PrivateRoute>} />
                     <Route path="/ajustes" element={<PrivateRoute requireRole="admin"><Ajustes /></PrivateRoute>} />
-<Route path="/auditoria" element={<PrivateRoute requireRole="admin"><Auditoria /></PrivateRoute>} />
                   </Routes>
                 </Suspense>
                 <AIChatWidget />
