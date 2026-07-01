@@ -496,10 +496,12 @@ const Dashboard = () => {
   const [filtroAplicacion, setFiltroAplicacion] = useState('');
   const [filtroCategoria,  setFiltroCategoria]  = useState('');
   const [filtroProducto,   setFiltroProducto]   = useState('');
+  const [fechaInicio, setFechaInicio]      = useState('');
+  const [fechaFin,    setFechaFin]         = useState('');
   const getCurrentMonth = () => new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
-  const hayFiltros = filtroEmpresa || filtroAplicacion || filtroCategoria || filtroProducto || selectedMonth !== getCurrentMonth();
+  const hayFiltros = filtroEmpresa || filtroAplicacion || filtroCategoria || filtroProducto || fechaInicio || fechaFin || selectedMonth !== getCurrentMonth();
 
   useEffect(() => {
     (async () => {
@@ -525,6 +527,11 @@ const Dashboard = () => {
       if (filtroAplicacion && inc.aplicacion_id !== parseInt(filtroAplicacion)) return false;
       if (filtroCategoria  && inc.categoria_id  !== parseInt(filtroCategoria))  return false;
       if (filtroProducto   && inc.producto_id   !== parseInt(filtroProducto))   return false;
+      if (fechaInicio && new Date(inc.fecha_inicio) < new Date(fechaInicio))    return false;
+      if (fechaFin) {
+        const end = new Date(fechaFin); end.setHours(23, 59, 59, 999);
+        if (new Date(inc.fecha_inicio) > end) return false;
+      }
       if (selectedMonth && inc.fecha_inicio?.slice(0, 7) !== selectedMonth) return false;
       return true;
     });
@@ -561,12 +568,12 @@ const Dashboard = () => {
       chartDataProds: fmt(mapProd, prodsG, 'Prod').filter(p => p.inactividad > 0).sort((a, b) => b.inactividad - a.inactividad),
       incidentesFiltrados: df,
     };
-  }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, selectedMonth, aplicaciones, categorias, productos]);
+  }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, selectedMonth, aplicaciones, categorias, productos]);
 
   const aplicacionesFiltradas = empresaFijada ? aplicaciones.filter(a => a.empresas?.some(e => e.id === empresaFijada)) : aplicaciones;
   const categoriasFiltradas   = empresaFijada ? categorias.filter(c => incidentesFiltrados.some(i => i.categoria_id === c.id)) : categorias;
   const productosFiltrados    = empresaFijada ? productos.filter(p => incidentesFiltrados.some(i => i.producto_id === p.id)) : productos;
-  const limpiarFiltros = () => { setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria(''); setFiltroProducto(''); setSelectedMonth(getCurrentMonth()); };
+  const limpiarFiltros = () => { setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria(''); setFiltroProducto(''); setFechaInicio(''); setFechaFin(''); setSelectedMonth(getCurrentMonth()); };
 
   const axisStyle = { fill: '#a1a1aa', fontSize: 9, fontWeight: 700, fontFamily: 'Geist, sans-serif' };
 
@@ -617,6 +624,15 @@ const Dashboard = () => {
               <div className="d-filter-group">
                 <span className="d-filter-label"><Calendar size={9} />Mes</span>
                 <input type="month" className="d-date-input" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ width: '100%' }} />
+              </div>
+              <div className="d-filter-sep" />
+              <div className="d-filter-group">
+                <span className="d-filter-label"><Calendar size={9} />Rango fechas</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="date" className="d-date-input" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
+                  <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 700 }}>—</span>
+                  <input type="date" className="d-date-input" value={fechaFin} onChange={e => setFechaFin(e.target.value)} />
+                </div>
               </div>
 
               <div className="d-filter-sep" />
