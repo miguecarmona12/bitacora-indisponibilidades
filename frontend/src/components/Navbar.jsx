@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Settings, LayoutDashboard, Users, LogOut, Menu, X, Sun, Moon, HelpCircle, Sliders } from 'lucide-react';
+import { Activity, Settings, LayoutDashboard, Users, LogOut, Menu, X, Sun, Moon, HelpCircle, Sliders, History } from 'lucide-react';
 import { authService } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 
@@ -24,6 +24,7 @@ const Navbar = () => {
     { path: '/configuracion', name: 'Catálogos', icon: <Settings size={20} />, roles: ['admin'] },
     { path: '/usuarios', name: 'Usuarios', icon: <Users size={20} />, roles: ['admin'] },
     { path: '/ajustes', name: 'Ajustes', icon: <Sliders size={20} />, roles: ['admin'] },
+    { path: '/auditoria', name: 'Auditoría', icon: <History size={20} />, roles: ['admin'] },
   ];
 
   const visibleItems = navItems.filter(item => item.roles.includes(user.rol));

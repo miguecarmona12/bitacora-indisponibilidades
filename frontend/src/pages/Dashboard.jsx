@@ -190,6 +190,14 @@ const STYLES = `
     position: relative; align-self: flex-start;
   }
   .d-filter-btn:hover { box-shadow: var(--shadow-md); border-color: #d4d4d8; }
+
+  @media print {
+    .d-filter-btn, .d-filter-panel, .d-clear-btn, nav, .navbar, .nav-root { display: none !important; }
+    .d-root { padding-top: 16px !important; }
+    .d-chart-grid { break-inside: avoid; }
+    .d-card { break-inside: avoid; }
+    body { background: white !important; }
+  }
   .d-filter-active-dot {
     width: 6px; height: 6px; border-radius: 50%;
     background: var(--fuchsia);
@@ -575,21 +583,7 @@ const Dashboard = () => {
   const productosFiltrados    = empresaFijada ? productos.filter(p => incidentesFiltrados.some(i => i.producto_id === p.id)) : productos;
   const limpiarFiltros = () => { setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria(''); setFiltroProducto(''); setFechaInicio(''); setFechaFin(''); setSelectedMonth(getCurrentMonth()); };
 
-  const exportPDF = async () => {
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-      const el = document.getElementById('dashboard-root');
-      if (!el) return;
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('l', 'mm', 'a3');
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = (canvas.height * pdfW) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
-      pdf.save(`dashboard-${selectedMonth}.pdf`);
-    } catch { toast.warning('Error al exportar PDF'); }
-  };
+  const exportPDF = () => window.print();
 
   const axisStyle = { fill: '#a1a1aa', fontSize: 9, fontWeight: 700, fontFamily: 'Geist, sans-serif' };
 
