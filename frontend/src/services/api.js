@@ -255,6 +255,15 @@ export const bitacoraService = {
     const response = await api.post('/api/ai/registrar', datosIncidente);
     return response.data;
   },
+  getAuditoria: async (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.entidad) query.append('entidad', params.entidad);
+    if (params.entidad_id) query.append('entidad_id', params.entidad_id);
+    if (params.limit) query.append('limit', params.limit);
+    const qs = query.toString();
+    const response = await api.get(`/auditoria${qs ? `?${qs}` : ''}`);
+    return response.data;
+  },
 };
 
 export default api;

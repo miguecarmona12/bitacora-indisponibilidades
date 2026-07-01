@@ -4,7 +4,7 @@ import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import {
   BarChart3, TrendingUp, AlertCircle, Clock,
   AppWindow, Server, Activity, Filter, X,
-  Zap, Calendar, ChevronDown, Wifi, FolderTree
+  Zap, Calendar, ChevronDown, Wifi, FolderTree, FileText
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -575,11 +575,27 @@ const Dashboard = () => {
   const productosFiltrados    = empresaFijada ? productos.filter(p => incidentesFiltrados.some(i => i.producto_id === p.id)) : productos;
   const limpiarFiltros = () => { setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria(''); setFiltroProducto(''); setFechaInicio(''); setFechaFin(''); setSelectedMonth(getCurrentMonth()); };
 
+  const exportPDF = async () => {
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      const el = document.getElementById('dashboard-root');
+      if (!el) return;
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('l', 'mm', 'a3');
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = (canvas.height * pdfW) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+      pdf.save(`dashboard-${selectedMonth}.pdf`);
+    } catch { toast.warning('Error al exportar PDF'); }
+  };
+
   const axisStyle = { fill: '#a1a1aa', fontSize: 9, fontWeight: 700, fontFamily: 'Geist, sans-serif' };
 
   /* ── RENDER ── */
   return (
-    <div className="d-root d-bg pt-20 px-4 pb-16">
+    <div className="d-root d-bg pt-20 px-4 pb-16" id="dashboard-root">
       <style>{STYLES}</style>
 
       <div style={{ maxWidth: 1320, margin: '0 auto' }}>
@@ -609,12 +625,18 @@ const Dashboard = () => {
             </p>
           </div>
 
-          <button className="d-filter-btn" onClick={() => setFiltroOpen(o => !o)}>
-            <Filter size={13} />
-            Filtros
-            {hayFiltros && <span className="d-filter-active-dot" />}
-            <ChevronDown size={11} style={{ transform: filtroOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className="d-filter-btn" onClick={exportPDF}>
+              <FileText size={13} />
+              PDF
+            </button>
+            <button className="d-filter-btn" onClick={() => setFiltroOpen(o => !o)}>
+              <Filter size={13} />
+              Filtros
+              {hayFiltros && <span className="d-filter-active-dot" />}
+              <ChevronDown size={11} style={{ transform: filtroOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+          </div>
         </div>
 
         {/* ── Filter Panel ── */}

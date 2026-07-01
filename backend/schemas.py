@@ -238,3 +238,15 @@ class AdjuntoResponse(BaseModel):
     uploaded_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+# --- AUDITORIA ---
+class AuditoriaResponse(BaseModel):
+    id: int
+    entidad: str
+    entidad_id: Optional[int] = None
+    accion: str
+    usuario_id: Optional[int] = None
+    usuario_nombre: Optional[str] = None
+    detalle: Optional[str] = None
+    fecha: datetime
+    model_config = ConfigDict(from_attributes=True)
+

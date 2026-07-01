@@ -8,6 +8,7 @@ import Navbar from './components/Navbar';
 import SessionTimeout from './components/SessionTimeout';
 import OnboardingTour from './components/OnboardingTour';
 import AIChatWidget from './components/AIChatWidget';
+import useWebSocket from './hooks/useWebSocket';
 import { authService } from './services/api';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -56,6 +57,8 @@ const PageLoader = () => (
 );
 
 function App() {
+  const user = authService.getCurrentUser();
+  useWebSocket(null, !!user?.access_token);
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>

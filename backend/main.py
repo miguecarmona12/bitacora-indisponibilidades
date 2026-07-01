@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
@@ -27,6 +27,7 @@ import urllib.parse
 import urllib.request
 from urllib.error import HTTPError, URLError
 import google.generativeai as genai
+import asyncio
 
 logger.remove()
 logger.add(sys.stdout, level="INFO", colorize=True)
@@ -99,6 +100,54 @@ try:
         """))
 except Exception:
     pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS auditoria (
+                id SERIAL PRIMARY KEY,
+                entidad VARCHAR(50) NOT NULL,
+                entidad_id INTEGER,
+                accion VARCHAR(20) NOT NULL,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                usuario_nombre VARCHAR(50),
+                detalle TEXT,
+                fecha TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_auditoria_entidad ON auditoria(entidad)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(fecha)"))
+except Exception:
+    pass
+
+# ==============================
+# AUDITORIA + WEBSOCKET
+# ==============================
+connected_clients: set[WebSocket] = set()
+event_loop: asyncio.AbstractEventLoop | None = None
+
+async def broadcast(message: dict):
+    for client in connected_clients.copy():
+        try:
+            await client.send_json(message)
+        except Exception:
+            connected_clients.discard(client)
+
+def emit_event(message: dict):
+    if event_loop and not event_loop.is_closed():
+        asyncio.run_coroutine_threadsafe(broadcast(message), event_loop)
+
+def registrar_auditoria(db: Session, entidad: str, entidad_id: int | None, accion: str, usuario_id: int | None, usuario_nombre: str | None, detalle: dict | None = None):
+    audit = models.Auditoria(
+        entidad=entidad,
+        entidad_id=entidad_id,
+        accion=accion,
+        usuario_id=usuario_id,
+        usuario_nombre=usuario_nombre,
+        detalle=json.dumps(detalle, default=str) if detalle else None
+    )
+    db.add(audit)
+    db.flush()
 
 # ==============================
 # CREAR ADMIN
@@ -225,7 +274,9 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
+    global event_loop
+    event_loop = asyncio.get_event_loop()
     create_default_admin()
 
 # ==============================
@@ -234,6 +285,35 @@ def startup_event():
 @app.get("/")
 def root():
     return {"ok": True}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    connected_clients.add(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        connected_clients.discard(websocket)
+
+@app.get("/auditoria", response_model=List[schemas.AuditoriaResponse])
+def get_auditoria(
+    entidad: Optional[str] = None,
+    entidad_id: Optional[int] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.require_role(["admin"]))
+):
+    q = db.query(models.Auditoria)
+    if entidad:
+        q = q.filter(models.Auditoria.entidad == entidad)
+    if entidad_id:
+        q = q.filter(models.Auditoria.entidad_id == entidad_id)
+    return q.order_by(models.Auditoria.fecha.desc()).limit(limit).all()
 
 @app.get("/health")
 def health(db: Session = Depends(get_db)):
@@ -643,8 +723,11 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
     nuevo = models.Incidente(**incidente.dict())
     nuevo.usuario_id = current_user.id
     db.add(nuevo)
+    db.flush()
+    registrar_auditoria(db, "incidente", nuevo.id, "crear", current_user.id, current_user.username, {"data": incidente.dict()})
     db.commit()
     db.refresh(nuevo)
+    emit_event({"type": "incidente_creado", "id": nuevo.id, "usuario": current_user.username})
     enviar_notificacion_incidente(nuevo, db)
     return nuevo
 
@@ -658,11 +741,14 @@ def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Sessio
     for i in incidentes:
         n = models.Incidente(**i.dict())
         n.usuario_id = current_user.id
+        db.add(n)
+        db.flush()
+        registrar_auditoria(db, "incidente", n.id, "crear", current_user.id, current_user.username, {"data": i.dict()})
         nuevos.append(n)
-    db.add_all(nuevos)
     db.commit()
     for n in nuevos:
         db.refresh(n)
+        emit_event({"type": "incidente_creado", "id": n.id, "usuario": current_user.username})
     return nuevos
 
 @app.put("/incidentes/{incidente_id}", response_model=schemas.IncidenteResponse)
@@ -679,10 +765,13 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
         raise HTTPException(status_code=400, detail="La fecha de inicio no puede ser futura")
     if datos.fecha_fin and datos.fecha_inicio and datos.fecha_fin < datos.fecha_inicio:
         raise HTTPException(status_code=400, detail="La fecha de fin no puede ser anterior a la de inicio")
+    antes = {c.name: getattr(incidente, c.name) for c in incidente.__table__.columns}
     for field, value in datos.dict(exclude_unset=True).items():
         setattr(incidente, field, value)
+    registrar_auditoria(db, "incidente", incidente.id, "actualizar", current_user.id, current_user.username, {"antes": antes, "despues": datos.dict(exclude_unset=True)})
     db.commit()
     db.refresh(incidente)
+    emit_event({"type": "incidente_actualizado", "id": incidente.id, "usuario": current_user.username})
     return incidente
 
 @app.delete("/incidentes/{incidente_id}")
@@ -693,8 +782,11 @@ def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_u
     if current_user.rol == "tecnico" and current_user.empresa_id is not None:
         if incidente.empresa_id != current_user.empresa_id:
             raise HTTPException(status_code=403, detail="No autorizado para eliminar incidentes de otra empresa")
+    entidad_id = incidente.id
     db.delete(incidente)
+    registrar_auditoria(db, "incidente", entidad_id, "eliminar", current_user.id, current_user.username)
     db.commit()
+    emit_event({"type": "incidente_eliminado", "id": entidad_id, "usuario": current_user.username})
     return {"ok": True}
 
 

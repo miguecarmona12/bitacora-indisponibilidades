@@ -110,3 +110,15 @@ class Adjunto(Base):
     filepath = Column(String(500), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.datetime.now)
     incidente = relationship("Incidente", backref="adjuntos")
+
+class Auditoria(Base):
+    __tablename__ = "auditoria"
+    id = Column(Integer, primary_key=True, index=True)
+    entidad = Column(String(50), nullable=False, index=True)
+    entidad_id = Column(Integer, nullable=True)
+    accion = Column(String(20), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    usuario_nombre = Column(String(50), nullable=True)
+    detalle = Column(Text, nullable=True)
+    fecha = Column(DateTime, default=datetime.datetime.now, index=True)
+    usuario = relationship("Usuario")
