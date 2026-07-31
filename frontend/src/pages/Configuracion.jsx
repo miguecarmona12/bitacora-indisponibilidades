@@ -110,12 +110,11 @@ const STYLES = `
     overflow-y: auto;
   }
   .cfg-list-item {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: flex-start;
     padding: 10px 14px;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
     transition: background 0.1s ease;
-    gap: 8px;
   }
   .cfg-list-item:last-child { border-bottom: none; }
   .cfg-list-item:hover { background: var(--surface-2); }
@@ -147,7 +146,7 @@ const STYLES = `
     font-size: 10px; font-weight: 600;
     letter-spacing: .03em;
     padding: 2px 7px; border-radius: 4px;
-    white-space: nowrap; flex-shrink: 0;
+    white-space: nowrap; flex-shrink: 1;
   }
 
   /* ── Scrollbar — lista de ítems ── */
@@ -643,25 +642,29 @@ const Configuracion = () => {
               {aplicaciones.length === 0
                 ? <div className="cfg-empty"><AppWindow size={20} /><span>Sin aplicaciones</span></div>
                 : aplicaciones.map(app => (
-                  <div key={app.id} className="cfg-list-item">
-                    <span className="cfg-item-name">{app.nombre}</span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {app.empresas && app.empresas.length > 0
-                        ? app.empresas.map(e => (
-                          <span key={e.id} className="cfg-badge"
-                            style={{ background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', fontSize: 9, padding: '2px 6px' }}>
-                            {e.nombre}
-                          </span>
-                        ))
-                        : <span className="cfg-badge" style={{ background: 'var(--surface-3)', color: 'var(--text-3)', border: '1px solid var(--border)', fontSize: 9, padding: '2px 6px' }}>
-                            Global
-                          </span>
-                      }
-                      <button className="cfg-edit-btn" onClick={() => handleEditClick('aplicacion', app)}>
-                        <Pencil size={12} />
-                      </button>
-                    </div>
-                  </div>
+                   <div key={app.id} className="cfg-list-item">
+                     <div className="flex items-start gap-2 w-full min-w-0">
+                       <span className="cfg-item-name flex-1 min-w-0">{app.nombre}</span>
+                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                         <div className="flex flex-wrap gap-1 justify-end">
+                           {app.empresas && app.empresas.length > 0
+                             ? app.empresas.map(e => (
+                               <span key={e.id} className="cfg-badge"
+                                 style={{ background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', fontSize: 9, padding: '2px 6px' }}>
+                                 {e.nombre}
+                               </span>
+                             ))
+                             : <span className="cfg-badge" style={{ background: 'var(--surface-3)', color: 'var(--text-3)', border: '1px solid var(--border)', fontSize: 9, padding: '2px 6px' }}>
+                                 Global
+                               </span>
+                           }
+                         </div>
+                         <button className="cfg-edit-btn" onClick={() => handleEditClick('aplicacion', app)}>
+                           <Pencil size={12} />
+                         </button>
+                       </div>
+                     </div>
+                   </div>
                 ))
               }
             </div>
