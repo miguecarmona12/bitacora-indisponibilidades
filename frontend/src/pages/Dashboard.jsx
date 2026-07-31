@@ -9,7 +9,7 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
-  LineChart, Line
+  LineChart, Line, LabelList
 } from 'recharts';
 
 /* ─────────────────────────────────────────────────────────
