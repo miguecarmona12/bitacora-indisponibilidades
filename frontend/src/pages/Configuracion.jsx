@@ -105,7 +105,8 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    height: 260px;
+    max-height: 400px;
+    min-height: 100px;
     overflow-y: auto;
   }
   .cfg-list-item {
