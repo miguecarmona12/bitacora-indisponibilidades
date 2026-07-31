@@ -529,10 +529,11 @@ const Dashboard = () => {
     (async () => {
       try {
         setLoading(true);
+        const empresaId = empresaFijada ?? (filtroEmpresa ? parseInt(filtroEmpresa) : null);
         const [i, e, a, c, p] = await Promise.all([
           bitacoraService.getIncidentes(),
           bitacoraService.getEmpresas(),
-          bitacoraService.getAplicaciones(),
+          bitacoraService.getAplicaciones(empresaId),
           bitacoraService.getCategorias(),
           bitacoraService.getProductos(),
         ]);
@@ -540,7 +541,7 @@ const Dashboard = () => {
       } catch (err) { setError(err.response?.data?.detail || 'Error al cargar datos'); }
       finally { setLoading(false); }
     })();
-  }, []);
+  }, [empresaFijada, filtroEmpresa]);
 
   const { stats, chartDataApps, chartDataCats, chartDataProds, monthlyTrend, topEmpresas, mttrTrend, incidentesFiltrados } = useMemo(() => {
     const df = incidentes.filter(inc => {
@@ -626,7 +627,8 @@ const Dashboard = () => {
     };
   }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, selectedMonth, aplicaciones, categorias, productos]);
 
-  const aplicacionesFiltradas = empresaFijada ? aplicaciones.filter(a => a.empresas?.some(e => e.id === empresaFijada)) : aplicaciones;
+  const aplicacionesFiltradas = empresaFijada ? aplicaciones.filter(a => a.empresas?.some(e => e.id === empresaFijada)) : 
+    (filtroEmpresa ? aplicaciones.filter(a => a.empresas?.some(e => e.id === parseInt(filtroEmpresa))) : aplicaciones);
   const categoriasFiltradas   = empresaFijada ? categorias.filter(c => incidentesFiltrados.some(i => i.categoria_id === c.id)) : categorias;
   const productosFiltrados    = empresaFijada ? productos.filter(p => incidentesFiltrados.some(i => i.producto_id === p.id)) : productos;
   const limpiarFiltros = () => { setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria(''); setFiltroProducto(''); setFechaInicio(''); setFechaFin(''); setSelectedMonth(getCurrentMonth()); };
@@ -884,6 +886,7 @@ const Dashboard = () => {
                         <Tooltip content={<LineTooltip unit=" min" />} cursor={{ fill: 'var(--surface-2)' }} />
                         <Bar dataKey="minutos" radius={[0, 5, 5, 0]} barSize={16}>
                           {topEmpresas.map((_, i) => <Cell key={i} fill={['#7c3aed','#a21caf','#c2410c','#0e7490','#065f46'][i]} />)}
+                          <LabelList dataKey="minutos" position="right" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(value) => `${value} min`} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>

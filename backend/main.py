@@ -649,10 +649,15 @@ def delete_empresa(empresa_id: int, db: Session = Depends(get_db), current_user:
 # APLICACIONES
 # ==============================
 @app.get("/aplicaciones", response_model=List[schemas.AplicacionResponse])
-def get_aplicaciones(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user)):
-    if current_user.rol == "cliente" or (current_user.rol == "tecnico" and current_user.empresa_id is not None):
-        return db.query(models.Aplicacion).join(models.Aplicacion.empresas).filter(models.Empresa.id == current_user.empresa_id).all()
-    return db.query(models.Aplicacion).all()
+def get_aplicaciones(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_active_user), empresa_id: Optional[int] = None):
+    query = db.query(models.Aplicacion)
+    
+    if empresa_id is not None:
+        query = query.join(models.Aplicacion.empresas).filter(models.Empresa.id == empresa_id)
+    elif current_user.rol == "cliente" or (current_user.rol == "tecnico" and current_user.empresa_id is not None):
+        query = query.join(models.Aplicacion.empresas).filter(models.Empresa.id == current_user.empresa_id)
+    
+    return query.all()
 
 @app.post("/aplicaciones", response_model=schemas.AplicacionResponse)
 def create_aplicacion(aplicacion: schemas.AplicacionCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):

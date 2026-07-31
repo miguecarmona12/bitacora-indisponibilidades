@@ -132,8 +132,12 @@ export const bitacoraService = {
   },
 
   // Aplicaciones
-  getAplicaciones: async () => {
-    const response = await api.get('/aplicaciones');
+  getAplicaciones: async (empresa_id) => {
+    const params = {};
+    if (empresa_id) {
+      params.empresa_id = empresa_id;
+    }
+    const response = await api.get('/aplicaciones', { params });
     return response.data;
   },
   createAplicacion: async (data) => {
