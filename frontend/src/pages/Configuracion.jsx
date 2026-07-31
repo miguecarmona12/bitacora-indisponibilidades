@@ -642,29 +642,29 @@ const Configuracion = () => {
               {aplicaciones.length === 0
                 ? <div className="cfg-empty"><AppWindow size={20} /><span>Sin aplicaciones</span></div>
                 : aplicaciones.map(app => (
-                   <div key={app.id} className="cfg-list-item">
-                     <div className="flex items-start gap-2 w-full min-w-0">
-                       <span className="cfg-item-name flex-1 min-w-0">{app.nombre}</span>
-                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                         <div className="flex flex-wrap gap-1 justify-end">
-                           {app.empresas && app.empresas.length > 0
-                             ? app.empresas.map(e => (
-                               <span key={e.id} className="cfg-badge"
-                                 style={{ background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', fontSize: 9, padding: '2px 6px' }}>
-                                 {e.nombre}
-                               </span>
-                             ))
-                             : <span className="cfg-badge" style={{ background: 'var(--surface-3)', color: 'var(--text-3)', border: '1px solid var(--border)', fontSize: 9, padding: '2px 6px' }}>
-                                 Global
-                               </span>
-                           }
-                         </div>
-                         <button className="cfg-edit-btn" onClick={() => handleEditClick('aplicacion', app)}>
-                           <Pencil size={12} />
-                         </button>
-                       </div>
-                     </div>
-                   </div>
+                    <div key={app.id} className="cfg-list-item">
+                      <div className="flex items-start gap-3 w-full min-w-0">
+                        <span className="cfg-item-name flex-1 min-w-0 truncate">{app.nombre}</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="flex flex-wrap gap-1 max-w-[200px] justify-end">
+                            {app.empresas && app.empresas.length > 0
+                              ? app.empresas.map(e => (
+                                <span key={e.id} className="cfg-badge"
+                                  style={{ background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', fontSize: 9, padding: '2px 6px' }}>
+                                  {e.nombre}
+                                </span>
+                              ))
+                              : <span className="cfg-badge" style={{ background: 'var(--surface-3)', color: 'var(--text-3)', border: '1px solid var(--border)', fontSize: 9, padding: '2px 6px' }}>
+                                  Global
+                                </span>
+                            }
+                          </div>
+                          <button className="cfg-edit-btn" onClick={() => handleEditClick('aplicacion', app)}>
+                            <Pencil size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                 ))
               }
             </div>
