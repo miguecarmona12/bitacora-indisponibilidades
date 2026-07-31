@@ -135,6 +135,19 @@ try:
 except Exception:
     pass
 
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS preferencias_notificacion (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE NOT NULL,
+                tipo VARCHAR(50) NOT NULL,
+                activa BOOLEAN DEFAULT TRUE
+            )
+        """))
+except Exception:
+    pass
+
 # ==============================
 # WEBSOCKET
 # ==============================
@@ -283,6 +296,12 @@ app.add_middleware(
 def crear_notificaciones(db: Session, tipo: str, titulo: str, mensaje: str = None):
     admins = db.query(models.Usuario).filter(models.Usuario.rol == "admin").all()
     for admin in admins:
+        pref = db.query(models.PreferenciaNotificacion).filter(
+            models.PreferenciaNotificacion.usuario_id == admin.id,
+            models.PreferenciaNotificacion.tipo == tipo
+        ).first()
+        if pref is not None and not pref.activa:
+            continue
         n = models.Notificacion(usuario_id=admin.id, tipo=tipo, titulo=titulo, mensaje=mensaje)
         db.add(n)
     db.flush()
@@ -386,6 +405,40 @@ def marcar_todas_leidas(db: Session = Depends(get_db), current_user: models.Usua
     db.query(models.Notificacion).filter(models.Notificacion.usuario_id == current_user.id, models.Notificacion.leida == False).update({"leida": True})
     db.commit()
     return {"ok": True}
+
+@app.delete("/notificaciones/leidas")
+def limpiar_leidas(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    db.query(models.Notificacion).filter(models.Notificacion.usuario_id == current_user.id, models.Notificacion.leida == True).delete()
+    db.commit()
+    return {"ok": True}
+
+@app.get("/notificaciones/preferencias")
+def get_preferencias_notificacion(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    prefs = db.query(models.PreferenciaNotificacion).filter(models.PreferenciaNotificacion.usuario_id == current_user.id).all()
+    if not prefs:
+        tipos = ["incidente_creado", "incidente_actualizado", "incidente_eliminado"]
+        for t in tipos:
+            db.add(models.PreferenciaNotificacion(usuario_id=current_user.id, tipo=t, activa=True))
+        db.commit()
+        prefs = db.query(models.PreferenciaNotificacion).filter(models.PreferenciaNotificacion.usuario_id == current_user.id).all()
+    return prefs
+
+@app.put("/notificaciones/preferencias")
+def update_preferencia_notificacion(body: dict, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    tipo = body.get("tipo")
+    activa = body.get("activa", True)
+    if not tipo:
+        raise HTTPException(status_code=400, detail="Se requiere 'tipo'")
+    pref = db.query(models.PreferenciaNotificacion).filter(
+        models.PreferenciaNotificacion.usuario_id == current_user.id,
+        models.PreferenciaNotificacion.tipo == tipo
+    ).first()
+    if pref:
+        pref.activa = activa
+    else:
+        db.add(models.PreferenciaNotificacion(usuario_id=current_user.id, tipo=tipo, activa=activa))
+    db.commit()
+    return {"ok": True, "tipo": tipo, "activa": activa}
 
 # ==============================
 # LOGIN
@@ -779,7 +832,7 @@ def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Sessio
         n.usuario_id = current_user.id
         db.add(n)
         db.flush()
-        crear_notificaciones(db, "incidente_creado", f"Incidente #{n.id}", f"{current_user.username} creó un incidente (bulk)")
+        crear_notificaciones(db, "incidente_creado", f"Incidente #{n.id}", f"{current_user.username} creó un incidente")
         nuevos.append(n)
     db.commit()
     for n in nuevos:

@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, PieChart, Pie, Legend
+  ResponsiveContainer, Cell, PieChart, Pie, Legend,
+  LineChart, Line
 } from 'recharts';
 
 /* ─────────────────────────────────────────────────────────
@@ -468,6 +469,19 @@ const CustomPieTooltip = ({ active, payload }) => {
   );
 };
 
+const LineTooltip = ({ active, payload, label, unit }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="d-tooltip">
+      <p className="d-tooltip-title">{label}</p>
+      <div className="d-tooltip-row">
+        <span>{payload[0].name || 'Valor'}</span>
+        <strong style={{ color: 'var(--violet)' }}>{payload[0].value}{unit}</strong>
+      </div>
+    </div>
+  );
+};
+
 const EmptyChart = ({ green = false }) => (
   <div className="d-empty" style={green ? { background: '#f0fdf4', borderColor: '#bbf7d0', color: '#16a34a' } : {}}>
     <TrendingUp size={22} />
@@ -528,7 +542,7 @@ const Dashboard = () => {
     })();
   }, []);
 
-  const { stats, chartDataApps, chartDataCats, chartDataProds, incidentesFiltrados } = useMemo(() => {
+  const { stats, chartDataApps, chartDataCats, chartDataProds, monthlyTrend, topEmpresas, mttrTrend, incidentesFiltrados } = useMemo(() => {
     const df = incidentes.filter(inc => {
       const ea = empresaFijada ?? (filtroEmpresa ? parseInt(filtroEmpresa) : null);
       if (ea && inc.empresa_id !== ea) return false;
@@ -569,11 +583,45 @@ const Dashboard = () => {
       return { nombre: info?.nombre ?? `${key} ${id}`, disponibilidad: disp, inactividad: down };
     });
 
+    const monthsMap = {};
+    df.forEach(inc => {
+      const m = inc.fecha_inicio?.slice(0, 7);
+      if (m) monthsMap[m] = (monthsMap[m] || 0) + 1;
+    });
+    const monthlyTrend = Object.entries(monthsMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mes, count]) => ({ mes, incidentes: count }));
+
+    const empMap = {};
+    df.forEach(inc => {
+      if (inc.empresa_id) {
+        empMap[inc.empresa_id] = (empMap[inc.empresa_id] || 0) + inc.duracion_minutos;
+      }
+    });
+    const topEmpresas = Object.entries(empMap)
+      .map(([id, minutos]) => ({ nombre: empresas.find(e => e.id === parseInt(id))?.nombre || `Red ${id}`, minutos: Math.round(minutos * 10) / 10 }))
+      .sort((a, b) => b.minutos - a.minutos)
+      .slice(0, 5);
+
+    const mttrMap = {};
+    df.forEach(inc => {
+      const m = inc.fecha_inicio?.slice(0, 7);
+      if (m && inc.duracion_minutos) {
+        if (!mttrMap[m]) mttrMap[m] = { total: 0, count: 0 };
+        mttrMap[m].total += inc.duracion_minutos;
+        mttrMap[m].count += 1;
+      }
+    });
+    const mttrTrend = Object.entries(mttrMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mes, data]) => ({ mes, mttr: Math.round((data.total / data.count) * 10) / 10 }));
+
     return {
       stats: { totalIncidentes: df.length, tiempoInactividad: totalTiempo, productosAfectados: prodAfect, aplicacionesAfectadas: appAfect },
       chartDataApps:  fmt(mapApp,  appsG,  'App').sort((a, b) => a.disponibilidad - b.disponibilidad),
       chartDataCats:  fmt(mapCat,  catsG,  'Cat').sort((a, b) => a.disponibilidad - b.disponibilidad),
       chartDataProds: fmt(mapProd, prodsG, 'Prod').filter(p => p.inactividad > 0).sort((a, b) => b.inactividad - a.inactividad),
+      monthlyTrend, topEmpresas, mttrTrend,
       incidentesFiltrados: df,
     };
   }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, selectedMonth, aplicaciones, categorias, productos]);
@@ -797,6 +845,65 @@ const Dashboard = () => {
                         <Tooltip content={<CustomPieTooltip />} />
                         <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
                       </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── New Charts Row ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 14, marginTop: 20, marginBottom: 20 }}>
+              {/* Card 4: Monthly Trend */}
+              <div className="d-chart-card d-fadeup" style={{ animationDelay: '260ms' }}>
+                <SectionTitle icon={TrendingUp} title="Tendencia Mensual · Incidentes" iconColor="#0e7490" />
+                {monthlyTrend.length < 2 ? <EmptyChart /> : (
+                  <div style={{ width: '100%', height: 220 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={monthlyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                        <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} allowDecimals={false} />
+                        <Tooltip content={<LineTooltip unit=" incidentes" />} cursor={{ stroke: 'var(--border)', strokeDasharray: '4 4' }} />
+                        <Line type="monotone" dataKey="incidentes" stroke="#7c3aed" strokeWidth={2.5} dot={{ fill: '#7c3aed', r: 4 }} activeDot={{ r: 6 }} name="Incidentes" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Card 5: Top 5 Empresas */}
+              <div className="d-chart-card d-fadeup" style={{ animationDelay: '300ms' }}>
+                <SectionTitle icon={Wifi} title="Top 5 · Redes con más caídas" iconColor="#c2410c" />
+                {topEmpresas.length === 0 ? <EmptyChart green /> : (
+                  <div style={{ width: '100%', height: 220 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topEmpresas} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} />
+                        <YAxis dataKey="nombre" type="category" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 9 }} width={110} />
+                        <Tooltip content={<LineTooltip unit=" min" />} cursor={{ fill: 'var(--surface-2)' }} />
+                        <Bar dataKey="minutos" radius={[0, 5, 5, 0]} barSize={16}>
+                          {topEmpresas.map((_, i) => <Cell key={i} fill={['#7c3aed','#a21caf','#c2410c','#0e7490','#065f46'][i]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Card 6: MTTR Trend */}
+              <div className="d-chart-card d-fadeup" style={{ animationDelay: '340ms' }}>
+                <SectionTitle icon={Clock} title="MTTR · Tiempo Promedio de Resolución" iconColor="#065f46" />
+                {mttrTrend.length < 2 ? <EmptyChart /> : (
+                  <div style={{ width: '100%', height: 220 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={mttrTrend} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                        <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} />
+                        <Tooltip content={<LineTooltip unit=" min" />} cursor={{ stroke: 'var(--border)', strokeDasharray: '4 4' }} />
+                        <Line type="monotone" dataKey="mttr" stroke="#16a34a" strokeWidth={2.5} dot={{ fill: '#16a34a', r: 4 }} activeDot={{ r: 6 }} name="MTTR" />
+                      </LineChart>
                     </ResponsiveContainer>
                   </div>
                 )}

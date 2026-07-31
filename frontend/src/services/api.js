@@ -276,6 +276,18 @@ export const notificacionService = {
     const response = await api.put('/notificaciones/leer-todas');
     return response.data;
   },
+  limpiarLeidas: async () => {
+    const response = await api.delete('/notificaciones/leidas');
+    return response.data;
+  },
+  getPreferencias: async () => {
+    const response = await api.get('/notificaciones/preferencias');
+    return response.data;
+  },
+  updatePreferencia: async (tipo, activa) => {
+    const response = await api.put('/notificaciones/preferencias', { tipo, activa });
+    return response.data;
+  },
 };
 
 export default api;

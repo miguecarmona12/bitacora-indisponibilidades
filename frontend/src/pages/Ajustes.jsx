@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { bitacoraService } from '../services/api';
-import { ToggleLeft } from 'lucide-react';
+import { bitacoraService, notificacionService } from '../services/api';
+import { ToggleLeft, Bell } from 'lucide-react';
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
@@ -46,11 +46,16 @@ const Ajustes = () => {
   const queryClient = useQueryClient();
   const [flags, setFlags] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [prefsNotif, setPrefsNotif] = useState([]);
+  const [loadingPrefs, setLoadingPrefs] = useState(true);
 
   useEffect(() => {
     bitacoraService.getFeatureFlags()
       .then(data => { setFlags(data); setLoading(false); })
       .catch(() => { setLoading(false); });
+    notificacionService.getPreferencias()
+      .then(data => { setPrefsNotif(data); setLoadingPrefs(false); })
+      .catch(() => setLoadingPrefs(false));
   }, []);
 
   const toggle = async (flag, activo) => {
@@ -62,6 +67,16 @@ const Ajustes = () => {
       toast.success(nuevo ? 'Funcionalidad activada' : 'Funcionalidad desactivada');
     } catch {
       toast.error('Error al actualizar. ¿Eres administrador?');
+    }
+  };
+
+  const togglePrefNotif = async (tipo, activa) => {
+    try {
+      await notificacionService.updatePreferencia(tipo, !activa);
+      setPrefsNotif(prev => prev.map(p => p.tipo === tipo ? { ...p, activa: !activa } : p));
+      toast.success(`Notificación ${!activa ? 'activada' : 'desactivada'}`);
+    } catch {
+      toast.error('Error al actualizar preferencia');
     }
   };
 
@@ -89,7 +104,7 @@ const Ajustes = () => {
           </div>
         </div>
 
-        <div className="aj-card">
+        <div className="aj-card" style={{ marginBottom: 24 }}>
           <div className="flex items-center gap-2 px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
             <ToggleLeft size={18} style={{ color: 'var(--violet)' }} />
             <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>Funcionalidades</h2>
@@ -122,6 +137,41 @@ const Ajustes = () => {
                 );
               })}
           </div>
+        </div>
+
+        {/* Preferencias de Notificaci�n */}
+        <div className="aj-card" style={{ marginTop: 24 }}>
+          <div className="flex items-center gap-2 px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <Bell size={18} style={{ color: 'var(--violet)' }} />
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>Notificaciones por Tipo</h2>
+          </div>
+          {loadingPrefs ? (
+            <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--text-3)' }}>Cargando...</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {[
+                { tipo: 'incidente_creado', label: 'Incidente Creado', desc: 'Cuando alguien registra un nuevo incidente' },
+                { tipo: 'incidente_actualizado', label: 'Incidente Actualizado', desc: 'Cuando se edita un incidente existente' },
+                { tipo: 'incidente_eliminado', label: 'Incidente Eliminado', desc: 'Cuando se elimina un incidente' },
+              ].map(item => {
+                const pref = prefsNotif.find(p => p.tipo === item.tipo);
+                const activa = pref ? pref.activa : true;
+                return (
+                  <div key={item.tipo} className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div>
+                      <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{item.label}</p>
+                      <p style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 1 }}>{item.desc}</p>
+                    </div>
+                    <button
+                      onClick={() => togglePrefNotif(item.tipo, activa)}
+                      className={`aj-toggle ${activa ? 'on' : 'off'}`}
+                      title={activa ? 'Desactivar' : 'Activar'}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

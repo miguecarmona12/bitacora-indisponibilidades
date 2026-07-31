@@ -114,6 +114,13 @@ class Adjunto(Base):
     uploaded_at = Column(DateTime, default=datetime.datetime.now)
     incidente = relationship("Incidente", backref="adjuntos")
 
+class PreferenciaNotificacion(Base):
+    __tablename__ = "preferencias_notificacion"
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    tipo = Column(String(50), nullable=False)
+    activa = Column(Boolean, default=True)
+
 class Notificacion(Base):
     __tablename__ = "notificaciones"
     id = Column(Integer, primary_key=True, index=True)

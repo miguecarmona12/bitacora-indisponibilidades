@@ -1,13 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import ReactMarkdown from 'react-markdown';
 import { 
   MessageSquare, Send, X, Bot, User, Sparkles, 
-  CheckCircle2, AlertTriangle, Loader2, HelpCircle 
+  CheckCircle2, AlertTriangle, Loader2, HelpCircle,
+  Lightbulb, Zap, TrendingUp, BarChart3
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { bitacoraService, authService } from '../services/api';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+
+const SUGGESTED_PROMPTS = [
+  { icon: Zap, text: 'Registrar caída de internet', label: 'Registrar caída' },
+  { icon: TrendingUp, text: '¿Cuántos incidentes hubo este mes?', label: 'Incidentes del mes' },
+  { icon: BarChart3, text: '¿Cuál fue el incidente más largo?', label: 'Incidente más largo' },
+  { icon: Lightbulb, text: '¿Qué soluciones me recomiendas?', label: 'Recomendaciones' },
+];
+
 const CHAT_DARK_STYLES = `
   .dark .chat-window { background: #1a1a2e !important; border-color: #2e2e4e !important; }
   .dark .chat-msgs { background: #14141f !important; }
@@ -70,11 +80,12 @@ const AIChatWidget = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+  const handleSend = async (e, promptText) => {
+    if (e) e.preventDefault();
+    const text = promptText || inputValue.trim();
+    if (!text || isLoading) return;
 
-    const userMessageText = inputValue.trim();
+    const userMessageText = text;
     setInputValue('');
 
     // Agregar mensaje del usuario a la lista
@@ -208,14 +219,48 @@ const AIChatWidget = () => {
 
                 {/* Burbuja */}
                 <div 
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-sm font-normal leading-relaxed whitespace-pre-line ${
+                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-sm font-normal leading-relaxed ${
                     msg.role === 'user' 
                       ? 'chat-msg-user bg-violet-600 text-white rounded-tr-none' 
                       : 'chat-msg-bot bg-white text-gray-800 border border-gray-100 rounded-tl-none'
                   }`}
                 >
-                  {msg.content}
+                  {msg.role === 'user' ? (
+                    msg.content
+                  ) : (
+                    <ReactMarkdown
+                      components={{
+                        strong: ({ children }) => <strong className="font-bold text-violet-600">{children}</strong>,
+                        ul: ({ children }) => <ul className="list-disc pl-4 space-y-0.5 my-1">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-4 space-y-0.5 my-1">{children}</ol>,
+                        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                        p: ({ children }) => <p className="mb-1 last:mb-0 leading-relaxed">{children}</p>,
+                        code: ({ children }) => <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded text-[10px] font-mono">{children}</code>,
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  )}
                 </div>
+
+                {/* Follow-up suggestions after bot response */}
+                {msg.role === 'model' && !msg.incident_detected && idx === messages.length - 1 && idx > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {[
+                      '¿Cómo registro un incidente?',
+                      'Muéstrame una lista de soluciones',
+                      '¿Qué es Bita?'
+                    ].map(s => (
+                      <button
+                        key={s}
+                        onClick={() => handleSend(null, s)}
+                        className="text-[9px] font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-full px-2.5 py-1 transition-colors whitespace-nowrap"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Tarjeta interactiva de Incidentes Extraídos */}
                 {msg.role === 'model' && msg.incident_detected && msg.extracted_data && (
@@ -377,6 +422,22 @@ const AIChatWidget = () => {
                 )}
               </div>
             ))}
+
+            {/* Sugerencias rápidas */}
+            {messages.length <= 1 && !isLoading && (
+              <div className="flex flex-wrap gap-1.5 justify-center mt-2">
+                {SUGGESTED_PROMPTS.map(p => (
+                  <button
+                    key={p.text}
+                    onClick={() => handleSend(null, p.text)}
+                    className="flex items-center gap-1 text-[9px] font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-full px-3 py-1.5 transition-colors"
+                  >
+                    <p.icon size={10} />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Burbuja de Carga */}
             {isLoading && (

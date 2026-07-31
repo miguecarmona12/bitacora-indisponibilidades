@@ -37,6 +37,11 @@ const NotificationPanel = () => {
     setNotificaciones(prev => prev.map(n => ({ ...n, leida: true })));
   };
 
+  const handleLimpiar = async () => {
+    await notificacionService.limpiarLeidas();
+    setNotificaciones(prev => prev.filter(n => !n.leida));
+  };
+
   const handleLeer = async (id) => {
     await notificacionService.marcarLeida(id);
     setNoLeidas(prev => Math.max(0, prev - 1));
@@ -74,11 +79,18 @@ const NotificationPanel = () => {
           >
             <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
               <span className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>Notificaciones</span>
-              {noLeidas > 0 && (
-                <button onClick={handleLeerTodas} className="text-xs font-semibold text-violet-600 hover:text-violet-800 flex items-center gap-1">
-                  <CheckCheck size={14} /> Leer todas
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {noLeidas > 0 && (
+                  <button onClick={handleLeerTodas} className="text-xs font-semibold text-violet-600 hover:text-violet-800 flex items-center gap-1">
+                    <CheckCheck size={14} /> Leer todas
+                  </button>
+                )}
+                {notificaciones.some(n => n.leida) && (
+                  <button onClick={handleLimpiar} className="text-xs font-semibold text-red-500 hover:text-red-700 flex items-center gap-1">
+                    <X size={14} /> Limpiar
+                  </button>
+                )}
+              </div>
             </div>
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {notificaciones.length === 0 ? (
