@@ -827,16 +827,16 @@ const Dashboard = () => {
                 Calculada solo con novedades asociadas a aplicaciones. Cada red conserva su color en las gráficas.
               </p>
               {disponibilidadRedes.length === 0 ? <EmptyChart green /> : (
-                <div style={{ width: '100%', height: Math.max(260, disponibilidadRedes.length * 44) }}>
+                <div style={{ width: '100%', height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={disponibilidadRedes} layout="vertical" margin={{ top: 8, right: 58, left: 10, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
-                      <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
-                      <YAxis dataKey="nombre" type="category" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} width={130} />
+                    <BarChart data={disponibilidadRedes} margin={{ top: 20, right: 14, left: -20, bottom: 42 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                      <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} angle={-25} textAnchor="end" interval={0} />
+                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)' }} />
-                      <Bar dataKey="disponibilidad" radius={[0, 5, 5, 0]} barSize={18}>
+                      <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={26}>
                         {disponibilidadRedes.map((e) => <Cell key={e.id} fill={e.color} />)}
-                        <LabelList dataKey="disponibilidad" position="right" fill="var(--text-2)" fontSize={10} fontWeight="bold" formatter={(value) => `${value}%`} />
+                        <LabelList dataKey="disponibilidad" position="top" fill="var(--text-2)" fontSize={10} fontWeight="bold" formatter={(value) => `${value}%`} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
