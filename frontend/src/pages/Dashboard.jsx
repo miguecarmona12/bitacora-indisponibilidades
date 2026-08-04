@@ -17,6 +17,9 @@ import {
 ───────────────────────────────────────────────────────── */
 const MINUTOS_MES = 43200;
 const PIE_COLORS = ['#7c3aed','#a21caf','#be185d','#c2410c','#b45309','#0e7490','#065f46'];
+const RED_COLORS = ['#7c3aed', '#a21caf', '#be185d', '#c2410c', '#0e7490', '#065f46', '#2563eb', '#b45309'];
+
+const getRedColor = (id) => RED_COLORS[Math.abs(Number(id) || 0) % RED_COLORS.length];
 
 const getDispColor = (d) => {
   if (d >= 99.5) return '#16a34a';
@@ -28,6 +31,17 @@ const getDispMeta = (d) => {
   if (d >= 99.5) return { label: 'Óptimo',  accent: '#16a34a' };
   if (d >= 98.0) return { label: 'Alerta',  accent: '#d97706' };
   return           { label: 'Crítico', accent: '#dc2626' };
+};
+
+const getPeriodoMinutos = (selectedMonth, fechaInicio, fechaFin) => {
+  const monthValue = selectedMonth || new Date().toISOString().slice(0, 7);
+  const [year, month] = monthValue.split('-').map(Number);
+  const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+  const start = fechaInicio ? new Date(`${fechaInicio}T00:00:00`) : monthStart;
+  const end = fechaFin ? new Date(`${fechaFin}T23:59:59.999`) : monthEnd;
+  const minutes = Math.max(1, Math.round((end - start + 1) / 60000));
+  return minutes;
 };
 
 /* ─────────────────────────────────────────────────────────
@@ -455,6 +469,12 @@ const CustomTooltip = ({ active, payload, label }) => {
         <span>Caída</span>
         <strong style={{ color: '#dc2626' }}>{payload[0].payload.inactividad} min</strong>
       </div>
+      {payload[0].payload.minutosHabiles && (
+        <div className="d-tooltip-row">
+          <span>Periodo</span>
+          <strong style={{ color: 'var(--text-2)' }}>{payload[0].payload.minutosHabiles} min</strong>
+        </div>
+      )}
     </div>
   );
 };
@@ -543,7 +563,7 @@ const Dashboard = () => {
     })();
   }, [empresaFijada, filtroEmpresa]);
 
-  const { stats, chartDataApps, chartDataCats, chartDataProds, monthlyTrend, topEmpresas, mttrTrend, incidentesFiltrados } = useMemo(() => {
+  const { stats, chartDataApps, chartDataCats, chartDataProds, monthlyTrend, topEmpresas, mttrTrend, disponibilidadRedes, incidentesFiltrados } = useMemo(() => {
     const df = incidentes.filter(inc => {
       const ea = empresaFijada ?? (filtroEmpresa ? parseInt(filtroEmpresa) : null);
       if (ea && inc.empresa_id !== ea) return false;
@@ -555,11 +575,12 @@ const Dashboard = () => {
         const end = new Date(fechaFin); end.setHours(23, 59, 59, 999);
         if (new Date(inc.fecha_inicio) > end) return false;
       }
-      if (selectedMonth && inc.fecha_inicio?.slice(0, 7) !== selectedMonth) return false;
+      if (!fechaInicio && !fechaFin && selectedMonth && inc.fecha_inicio?.slice(0, 7) !== selectedMonth) return false;
       return true;
     });
 
     const totalTiempo = Math.round(df.reduce((s, i) => s + i.duracion_minutos, 0) * 10) / 10;
+    const minutosHabilesPeriodo = getPeriodoMinutos(selectedMonth, fechaInicio, fechaFin);
     const prodAfect   = new Set(df.filter(i => i.producto_id).map(i => i.producto_id)).size;
     const appAfect    = new Set(df.filter(i => i.aplicacion_id).map(i => i.aplicacion_id)).size;
 
@@ -600,9 +621,36 @@ const Dashboard = () => {
       }
     });
     const topEmpresas = Object.entries(empMap)
-      .map(([id, minutos]) => ({ nombre: empresas.find(e => e.id === parseInt(id))?.nombre || `Red ${id}`, minutos: Math.round(minutos * 10) / 10 }))
+      .map(([id, minutos]) => ({ id: parseInt(id), nombre: empresas.find(e => e.id === parseInt(id))?.nombre || `Red ${id}`, minutos: Math.round(minutos * 10) / 10 }))
       .sort((a, b) => b.minutos - a.minutos)
       .slice(0, 5);
+
+    const redesBase = empresaFijada
+      ? empresas.filter(e => e.id === empresaFijada)
+      : filtroEmpresa
+        ? empresas.filter(e => e.id === parseInt(filtroEmpresa))
+        : empresas;
+    const minutosAppsPorRed = {};
+    redesBase.forEach(e => { minutosAppsPorRed[e.id] = 0; });
+    df.forEach(inc => {
+      if (inc.empresa_id && inc.aplicacion_id) {
+        minutosAppsPorRed[inc.empresa_id] = (minutosAppsPorRed[inc.empresa_id] ?? 0) + inc.duracion_minutos;
+      }
+    });
+    const disponibilidadRedes = Object.entries(minutosAppsPorRed)
+      .map(([id, minutos]) => {
+        const inactividad = Math.round(minutos * 10) / 10;
+        const disponibilidad = Math.max(0, parseFloat((((minutosHabilesPeriodo - inactividad) / minutosHabilesPeriodo) * 100).toFixed(3)));
+        return {
+          id: parseInt(id),
+          nombre: empresas.find(e => e.id === parseInt(id))?.nombre || `Red ${id}`,
+          disponibilidad,
+          inactividad,
+          minutosHabiles: minutosHabilesPeriodo,
+          color: getRedColor(id),
+        };
+      })
+      .sort((a, b) => a.disponibilidad - b.disponibilidad);
 
     const mttrMap = {};
     df.forEach(inc => {
@@ -622,10 +670,10 @@ const Dashboard = () => {
       chartDataApps:  fmt(mapApp,  appsG,  'App').sort((a, b) => a.disponibilidad - b.disponibilidad),
       chartDataCats:  fmt(mapCat,  catsG,  'Cat').sort((a, b) => a.disponibilidad - b.disponibilidad),
       chartDataProds: fmt(mapProd, prodsG, 'Prod').filter(p => p.inactividad > 0).sort((a, b) => b.inactividad - a.inactividad),
-      monthlyTrend, topEmpresas, mttrTrend,
+      monthlyTrend, topEmpresas, mttrTrend, disponibilidadRedes,
       incidentesFiltrados: df,
     };
-  }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, selectedMonth, aplicaciones, categorias, productos]);
+  }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, selectedMonth, aplicaciones, categorias, productos, empresas]);
 
   const aplicacionesFiltradas = empresaFijada ? aplicaciones.filter(a => a.empresas?.some(e => e.id === empresaFijada)) : 
     (filtroEmpresa ? aplicaciones.filter(a => a.empresas?.some(e => e.id === parseInt(filtroEmpresa))) : aplicaciones);
@@ -772,6 +820,30 @@ const Dashboard = () => {
               <KpiCard icon={Server}      label="Prods. Afectados"   value={stats.productosAfectados}   sub="con al menos 1 caída"     gradFrom="#a21caf" gradTo="#c026d3" delay={180} />
             </div>
 
+            {/* ── Disponibilidad General por Red ── */}
+            <div className="d-chart-card d-fadeup" style={{ animationDelay: '110ms', marginBottom: 20 }}>
+              <SectionTitle icon={Wifi} title="Disponibilidad General · Redes" iconColor="#0e7490" />
+              <p style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 600, marginTop: -6 }}>
+                Calculada solo con novedades asociadas a aplicaciones. Cada red conserva su color en las gráficas.
+              </p>
+              {disponibilidadRedes.length === 0 ? <EmptyChart green /> : (
+                <div style={{ width: '100%', height: Math.max(260, disponibilidadRedes.length * 44) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={disponibilidadRedes} layout="vertical" margin={{ top: 8, right: 58, left: 10, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+                      <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
+                      <YAxis dataKey="nombre" type="category" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} width={130} />
+                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)' }} />
+                      <Bar dataKey="disponibilidad" radius={[0, 5, 5, 0]} barSize={18}>
+                        {disponibilidadRedes.map((e) => <Cell key={e.id} fill={e.color} />)}
+                        <LabelList dataKey="disponibilidad" position="right" fill="var(--text-2)" fontSize={10} fontWeight="bold" formatter={(value) => `${value}%`} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
             {/* ── Charts Grid ── */}
             <div className="charts-grid">
 
@@ -885,7 +957,7 @@ const Dashboard = () => {
                         <YAxis dataKey="nombre" type="category" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 9 }} width={110} />
                         <Tooltip content={<LineTooltip unit=" min" />} cursor={{ fill: 'var(--surface-2)' }} />
                         <Bar dataKey="minutos" radius={[0, 5, 5, 0]} barSize={16}>
-                          {topEmpresas.map((_, i) => <Cell key={i} fill={['#7c3aed','#a21caf','#c2410c','#0e7490','#065f46'][i]} />)}
+                          {topEmpresas.map((e) => <Cell key={e.id} fill={getRedColor(e.id)} />)}
                           <LabelList dataKey="minutos" position="right" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(value) => `${value} min`} />
                         </Bar>
                       </BarChart>
