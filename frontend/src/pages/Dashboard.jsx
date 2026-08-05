@@ -222,7 +222,12 @@ const STYLES = `
     .print-hidden { display: none !important; }
     .d-root { padding-top: 16px !important; }
     .d-fadeup { animation: none !important; }
-    .d-kpi, .d-chart-card, .d-table-card { break-inside: avoid; box-shadow: none !important; }
+    .d-kpi, .d-chart-card { break-inside: avoid; box-shadow: none !important; }
+    .d-table-card { box-shadow: none !important; overflow: visible !important; }
+    .d-table-card tr { break-inside: avoid; }
+    .d-table-scroll { overflow: visible !important; max-height: none !important; }
+    .d-table thead th { position: static !important; }
+    .d-table td { white-space: normal !important; }
     .d-kpi-value { background: none !important; -webkit-text-fill-color: var(--text-1) !important; }
     .charts-grid { grid-template-columns: repeat(2, 1fr); }
     .d-tooltip { display: none; }
