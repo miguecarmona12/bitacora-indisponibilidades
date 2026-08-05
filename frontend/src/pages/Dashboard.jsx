@@ -230,6 +230,7 @@ const STYLES = `
     .d-table td { white-space: normal !important; }
     .d-kpi-value { background: none !important; -webkit-text-fill-color: var(--text-1) !important; }
     .charts-grid { grid-template-columns: repeat(2, 1fr); }
+    .recharts-responsive-container > div { width: 100% !important; display: flex; }
     .d-tooltip { display: none; }
   }
   .d-filter-active-dot {
@@ -1070,9 +1071,9 @@ const Dashboard = () => {
                       <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} angle={-25} textAnchor="end" interval={0} />
                       <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)' }} />
-                      <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={26}>
+                      <Bar isAnimationActive={false} dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={26}>
                         {disponibilidadRedes.map((e) => <Cell key={e.id} fill={e.color} />)}
-                        <LabelList dataKey="disponibilidad" position="top" fill="var(--text-2)" fontSize={10} fontWeight="bold" formatter={(value) => `${Number(value).toFixed(2)}%`} />
+                        <LabelList dataKey="disponibilidad" position="top" fill="#52525b" fontSize={10} fontWeight="bold" formatter={(value) => `${Number(value).toFixed(2)}%`} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -1103,7 +1104,7 @@ const Dashboard = () => {
                         />
                         <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)', radius: 6 }} />
-                        <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={20}>
+                        <Bar isAnimationActive={false} dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={20}>
                           {chartDataApps.map((e, i) => <Cell key={i} fill={getDispColor(e.disponibilidad)} />)}
                           <LabelList dataKey="disponibilidad" position="top" fill="#52525b" fontSize={10} fontWeight="bold" formatter={(value) => `${Number(value).toFixed(2)}%`} />
                         </Bar>
@@ -1125,7 +1126,7 @@ const Dashboard = () => {
                         <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
                         <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)', radius: 6 }} />
-                        <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={20}>
+                        <Bar isAnimationActive={false} dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={20}>
                           {chartDataCats.map((e, i) => <Cell key={i} fill={getDispColor(e.disponibilidad)} />)}
                           <LabelList dataKey="disponibilidad" position="top" fill="#52525b" fontSize={10} fontWeight="bold" formatter={(value) => `${Number(value).toFixed(2)}%`} />
                         </Bar>
@@ -1143,6 +1144,7 @@ const Dashboard = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie 
+                          isAnimationActive={false}
                           data={chartDataProds} 
                           cx="50%" 
                           cy="50%" // Centrado mejorado
@@ -1176,7 +1178,7 @@ const Dashboard = () => {
                         <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} />
                         <YAxis axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} allowDecimals={false} />
                         <Tooltip content={<LineTooltip unit=" incidentes" />} cursor={{ stroke: 'var(--border)', strokeDasharray: '4 4' }} />
-                        <Line type="monotone" dataKey="incidentes" stroke="#7c3aed" strokeWidth={2.5} dot={{ fill: '#7c3aed', r: 4 }} activeDot={{ r: 6 }} name="Incidentes" />
+                        <Line isAnimationActive={false} type="monotone" dataKey="incidentes" stroke="#7c3aed" strokeWidth={2.5} dot={{ fill: '#7c3aed', r: 4 }} activeDot={{ r: 6 }} name="Incidentes" />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -1194,7 +1196,7 @@ const Dashboard = () => {
                         <XAxis type="number" axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} />
                         <YAxis dataKey="nombre" type="category" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 9 }} width={110} />
                         <Tooltip content={<LineTooltip unit=" min" />} cursor={{ fill: 'var(--surface-2)' }} />
-                        <Bar dataKey="minutos" radius={[0, 5, 5, 0]} barSize={16}>
+                        <Bar isAnimationActive={false} dataKey="minutos" radius={[0, 5, 5, 0]} barSize={16}>
                           {topEmpresas.map((e) => <Cell key={e.id} fill={getRedColor(e.id)} />)}
                           <LabelList dataKey="minutos" position="right" fill="#52525b" fontSize={10} fontWeight="bold" formatter={(value) => `${value} min`} />
                         </Bar>
@@ -1215,7 +1217,7 @@ const Dashboard = () => {
                         <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} />
                         <YAxis axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} />
                         <Tooltip content={<LineTooltip unit=" min" />} cursor={{ stroke: 'var(--border)', strokeDasharray: '4 4' }} />
-                        <Line type="monotone" dataKey="mttr" stroke="#16a34a" strokeWidth={2.5} dot={{ fill: '#16a34a', r: 4 }} activeDot={{ r: 6 }} name="MTTR" />
+                        <Line isAnimationActive={false} type="monotone" dataKey="mttr" stroke="#16a34a" strokeWidth={2.5} dot={{ fill: '#16a34a', r: 4 }} activeDot={{ r: 6 }} name="MTTR" />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
