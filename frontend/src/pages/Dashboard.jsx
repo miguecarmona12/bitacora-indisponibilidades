@@ -207,12 +207,25 @@ const STYLES = `
   .d-filter-btn:hover { box-shadow: var(--shadow-md); border-color: #d4d4d8; }
 
   @media print {
+    :root, .d-root {
+      --surface: #ffffff !important;
+      --surface-2: #fafafa !important;
+      --surface-3: #f4f4f5 !important;
+      --border: #d4d4d8 !important;
+      --text-1: #09090b !important;
+      --text-2: #52525b !important;
+      --text-3: #71717a !important;
+    }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none !important; }
+    body { background: white !important; }
     .d-filter-btn, .d-filter-panel, .d-clear-btn, nav, .navbar, .nav-root { display: none !important; }
     .print-hidden { display: none !important; }
     .d-root { padding-top: 16px !important; }
-    .d-chart-grid { break-inside: avoid; }
-    .d-card { break-inside: avoid; }
-    body { background: white !important; }
+    .d-fadeup { animation: none !important; }
+    .d-kpi, .d-chart-card, .d-table-card { break-inside: avoid; box-shadow: none !important; }
+    .d-kpi-value { background: none !important; -webkit-text-fill-color: var(--text-1) !important; }
+    .charts-grid { grid-template-columns: repeat(2, 1fr); }
+    .d-tooltip { display: none; }
   }
   .d-filter-active-dot {
     width: 6px; height: 6px; border-radius: 50%;
@@ -464,7 +477,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       <p className="d-tooltip-title">{label}</p>
       <div className="d-tooltip-row">
         <span>Disponibilidad</span>
-        <strong style={{ color: meta.accent }}>{payload[0].value}%</strong>
+        <strong style={{ color: meta.accent }}>{Number(payload[0].value).toFixed(2)}%</strong>
       </div>
       <div className="d-tooltip-row">
         <span>Caída</span>
@@ -602,7 +615,7 @@ const Dashboard = () => {
     const fmt = (map, catalog, key) => Object.keys(map).map(id => {
       const info = catalog.find(x => x.id === parseInt(id));
       const down = Math.round(map[id] * 10) / 10;
-      const disp = parseFloat(((MINUTOS_MES - down) / MINUTOS_MES * 100).toFixed(3));
+      const disp = parseFloat(((MINUTOS_MES - down) / MINUTOS_MES * 100).toFixed(2));
       return { nombre: info?.nombre ?? `${key} ${id}`, disponibilidad: disp, inactividad: down };
     });
 
@@ -641,7 +654,7 @@ const Dashboard = () => {
     const disponibilidadRedes = Object.entries(minutosAppsPorRed)
       .map(([id, minutos]) => {
         const inactividad = Math.round(minutos * 10) / 10;
-        const disponibilidad = Math.max(0, parseFloat((((minutosHabilesPeriodo - inactividad) / minutosHabilesPeriodo) * 100).toFixed(3)));
+        const disponibilidad = Math.max(0, parseFloat((((minutosHabilesPeriodo - inactividad) / minutosHabilesPeriodo) * 100).toFixed(2)));
         return {
           id: parseInt(id),
           nombre: empresas.find(e => e.id === parseInt(id))?.nombre || `Red ${id}`,
@@ -1054,7 +1067,7 @@ const Dashboard = () => {
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)' }} />
                       <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={26}>
                         {disponibilidadRedes.map((e) => <Cell key={e.id} fill={e.color} />)}
-                        <LabelList dataKey="disponibilidad" position="top" fill="var(--text-2)" fontSize={10} fontWeight="bold" formatter={(value) => `${value}%`} />
+                        <LabelList dataKey="disponibilidad" position="top" fill="var(--text-2)" fontSize={10} fontWeight="bold" formatter={(value) => `${Number(value).toFixed(2)}%`} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -1072,7 +1085,7 @@ const Dashboard = () => {
                 {chartDataApps.length === 0 ? <EmptyChart /> : (
                   <div style={{ width: '100%', height: 250 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartDataApps} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
+                      <BarChart data={chartDataApps} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                         <XAxis 
                           dataKey="nombre" 
@@ -1087,6 +1100,7 @@ const Dashboard = () => {
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)', radius: 6 }} />
                         <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={20}>
                           {chartDataApps.map((e, i) => <Cell key={i} fill={getDispColor(e.disponibilidad)} />)}
+                          <LabelList dataKey="disponibilidad" position="top" fill="#52525b" fontSize={10} fontWeight="bold" formatter={(value) => `${Number(value).toFixed(2)}%`} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -1101,13 +1115,14 @@ const Dashboard = () => {
                 {chartDataCats.length === 0 ? <EmptyChart /> : (
                   <div style={{ width: '100%', height: 250 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartDataCats} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
+                      <BarChart data={chartDataCats} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                         <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
                         <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)', radius: 6 }} />
                         <Bar dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={20}>
                           {chartDataCats.map((e, i) => <Cell key={i} fill={getDispColor(e.disponibilidad)} />)}
+                          <LabelList dataKey="disponibilidad" position="top" fill="#52525b" fontSize={10} fontWeight="bold" formatter={(value) => `${Number(value).toFixed(2)}%`} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -1176,7 +1191,7 @@ const Dashboard = () => {
                         <Tooltip content={<LineTooltip unit=" min" />} cursor={{ fill: 'var(--surface-2)' }} />
                         <Bar dataKey="minutos" radius={[0, 5, 5, 0]} barSize={16}>
                           {topEmpresas.map((e) => <Cell key={e.id} fill={getRedColor(e.id)} />)}
-                          <LabelList dataKey="minutos" position="right" fill="#ffffff" fontSize={10} fontWeight="bold" formatter={(value) => `${value} min`} />
+                          <LabelList dataKey="minutos" position="right" fill="#52525b" fontSize={10} fontWeight="bold" formatter={(value) => `${value} min`} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
