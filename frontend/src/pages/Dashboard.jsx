@@ -208,6 +208,7 @@ const STYLES = `
 
   @media print {
     .d-filter-btn, .d-filter-panel, .d-clear-btn, nav, .navbar, .nav-root { display: none !important; }
+    .print-hidden { display: none !important; }
     .d-root { padding-top: 16px !important; }
     .d-chart-grid { break-inside: avoid; }
     .d-card { break-inside: avoid; }
@@ -681,7 +682,71 @@ const Dashboard = () => {
   const productosFiltrados    = empresaFijada ? productos.filter(p => incidentesFiltrados.some(i => i.producto_id === p.id)) : productos;
   const limpiarFiltros = () => { setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria(''); setFiltroProducto(''); setFechaInicio(''); setFechaFin(''); setSelectedMonth(getCurrentMonth()); };
 
-  const exportPDF = () => window.print();
+  const [selectedDashboards, setSelectedDashboards] = useState([
+    'disponibilidadGeneral',
+    'disponibilidadPorRed',
+    'incidentesPorCategoria',
+    'incidentesPorProducto',
+    'registroIncidentes'
+  ]);
+  const [showDashboardSelector, setShowDashboardSelector] = useState(false);
+
+  const allDashboards = [
+    { id: 'disponibilidadGeneral', name: 'Disponibilidad General' },
+    { id: 'disponibilidadPorRed', name: 'Disponibilidad por Red' },
+    { id: 'incidentesPorCategoria', name: 'Incidentes por Categoría' },
+    { id: 'incidentesPorProducto', name: 'Incidentes por Producto' },
+    { id: 'tendenciaMensual', name: 'Tendencia Mensual · Incidentes' },
+    { id: 'top5Redes', name: 'Top 5 · Redes con más caídas' },
+    { id: 'mttr', name: 'MTTR · Tiempo Promedio de Resolución' },
+    { id: 'registroIncidentes', name: 'Registro de Incidentes' }
+  ];
+
+  const exportPDF = () => {
+    setShowDashboardSelector(true);
+  };
+
+  const handlePrint = () => {
+    setShowDashboardSelector(false);
+    
+    // Apply print styles for selected dashboards
+    const dashboardElements = document.querySelectorAll('[data-dashboard-id]');
+    dashboardElements.forEach(el => {
+      const dashboardId = el.getAttribute('data-dashboard-id');
+      if (selectedDashboards.includes(dashboardId)) {
+        el.classList.add('print-visible');
+        el.classList.remove('print-hidden');
+      } else {
+        el.classList.add('print-hidden');
+        el.classList.remove('print-visible');
+      }
+    });
+
+    setTimeout(() => window.print(), 100);
+    
+    // Restore original state after printing
+    setTimeout(() => {
+      dashboardElements.forEach(el => {
+        el.classList.remove('print-visible', 'print-hidden');
+      });
+    }, 500);
+  };
+
+  const handleDashboardToggle = (dashboardId) => {
+    setSelectedDashboards(prev => 
+      prev.includes(dashboardId)
+        ? prev.filter(id => id !== dashboardId)
+        : [...prev, dashboardId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedDashboards(allDashboards.map(d => d.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedDashboards([]);
+  };
 
   const axisStyle = { fill: '#a1a1aa', fontSize: 9, fontWeight: 700, fontFamily: 'Geist, sans-serif' };
 
@@ -689,6 +754,159 @@ const Dashboard = () => {
   return (
     <div className="d-root d-bg pt-20 px-4 pb-16" id="dashboard-root">
       <style>{STYLES}</style>
+
+      {/* Dashboard Selection Modal */}
+      {showDashboardSelector && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '500px',
+            maxHeight: '80vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{ margin: 0, color: '#fff' }}>Seleccionar Dashboards para PDF</h3>
+              <button
+                onClick={() => setShowDashboardSelector(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#a1a1aa',
+                  fontSize: '20px',
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                marginBottom: '15px'
+              }}>
+                <button
+                  onClick={handleSelectAll}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#3f3f46',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Seleccionar todos
+                </button>
+                <button
+                  onClick={handleDeselectAll}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#3f3f46',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Deseleccionar todos
+                </button>
+              </div>
+              
+              <div style={{
+                display: 'grid',
+                gap: '12px'
+              }}>
+                {allDashboards.map(dashboard => (
+                  <div key={dashboard.id} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '12px',
+                    backgroundColor: '#27272a',
+                    borderRadius: '8px'
+                  }}>
+                    <input
+                      type="checkbox"
+                      id={`dashboard-${dashboard.id}`}
+                      checked={selectedDashboards.includes(dashboard.id)}
+                      onChange={() => handleDashboardToggle(dashboard.id)}
+                      style={{
+                        marginRight: '12px',
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <label
+                      htmlFor={`dashboard-${dashboard.id}`}
+                      style={{
+                        color: '#fff',
+                        cursor: 'pointer',
+                        flex: 1
+                      }}
+                    >
+                      {dashboard.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                onClick={() => setShowDashboardSelector(false)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: 'transparent',
+                  color: '#a1a1aa',
+                  border: '1px solid #3f3f46',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handlePrint}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#3b82f6',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Generar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ maxWidth: 1320, margin: '0 auto' }}>
 
@@ -813,7 +1031,7 @@ const Dashboard = () => {
         ) : (
           <>
             {/* ── KPI Grid ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 14, marginBottom: 20 }}>
+            <div data-dashboard-id="disponibilidadGeneral" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 14, marginBottom: 20 }}>
               <KpiCard icon={AlertCircle} label="Total Caídas"       value={stats.totalIncidentes}      sub="incidentes registrados"   gradFrom="#dc2626" gradTo="#f87171" delay={0}   />
               <KpiCard icon={Clock}       label="Mins. Inactividad"  value={stats.tiempoInactividad}    sub="tiempo total acumulado"   gradFrom="#d97706" gradTo="#fbbf24" delay={60}  />
               <KpiCard icon={AppWindow}   label="Apps Afectadas"     value={stats.aplicacionesAfectadas} sub="con al menos 1 caída"    gradFrom="#7c3aed" gradTo="#8b5cf6" delay={120} />
@@ -821,7 +1039,7 @@ const Dashboard = () => {
             </div>
 
             {/* ── Disponibilidad General por Red ── */}
-            <div className="d-chart-card d-fadeup" style={{ animationDelay: '110ms', marginBottom: 20 }}>
+            <div data-dashboard-id="disponibilidadPorRed" className="d-chart-card d-fadeup" style={{ animationDelay: '110ms', marginBottom: 20 }}>
               <SectionTitle icon={Wifi} title="Disponibilidad General · Redes" iconColor="#0e7490" />
               <p style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 600, marginTop: -6 }}>
                 Calculada solo con novedades asociadas a aplicaciones. Cada red conserva su color en las gráficas.
@@ -877,7 +1095,7 @@ const Dashboard = () => {
               </div>
 
               {/* Card 2: Categorías (Igual que la anterior) */}
-              <div className="d-chart-card d-fadeup" style={{ animationDelay: '180ms' }}>
+              <div data-dashboard-id="incidentesPorCategoria" className="d-chart-card d-fadeup" style={{ animationDelay: '180ms' }}>
                 <SectionTitle icon={BarChart3} title="Disponibilidad · Categorías" iconColor="#be185d" />
                 <StatusLegend />
                 {chartDataCats.length === 0 ? <EmptyChart /> : (
@@ -898,7 +1116,7 @@ const Dashboard = () => {
               </div>
 
               {/* Card 3: Pie Chart */}
-              <div className="d-chart-card d-fadeup" style={{ animationDelay: '220ms' }}>
+              <div data-dashboard-id="incidentesPorProducto" className="d-chart-card d-fadeup" style={{ animationDelay: '220ms' }}>
                 <SectionTitle icon={Activity} title="Impacto por Producto" iconColor="var(--fuchsia)" />
                 {chartDataProds.length === 0 ? <EmptyChart green /> : (
                   <div style={{ width: '100%', height: 250 }}>
@@ -928,7 +1146,7 @@ const Dashboard = () => {
             {/* ── New Charts Row ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 14, marginTop: 20, marginBottom: 20 }}>
               {/* Card 4: Monthly Trend */}
-              <div className="d-chart-card d-fadeup" style={{ animationDelay: '260ms' }}>
+              <div data-dashboard-id="tendenciaMensual" className="d-chart-card d-fadeup" style={{ animationDelay: '260ms' }}>
                 <SectionTitle icon={TrendingUp} title="Tendencia Mensual · Incidentes" iconColor="#0e7490" />
                 {monthlyTrend.length < 2 ? <EmptyChart /> : (
                   <div style={{ width: '100%', height: 220 }}>
@@ -946,7 +1164,7 @@ const Dashboard = () => {
               </div>
 
               {/* Card 5: Top 5 Empresas */}
-              <div className="d-chart-card d-fadeup" style={{ animationDelay: '300ms' }}>
+              <div data-dashboard-id="top5Redes" className="d-chart-card d-fadeup" style={{ animationDelay: '300ms' }}>
                 <SectionTitle icon={Wifi} title="Top 5 · Redes con más caídas" iconColor="#c2410c" />
                 {topEmpresas.length === 0 ? <EmptyChart green /> : (
                   <div style={{ width: '100%', height: 220 }}>
@@ -967,7 +1185,7 @@ const Dashboard = () => {
               </div>
 
               {/* Card 6: MTTR Trend */}
-              <div className="d-chart-card d-fadeup" style={{ animationDelay: '340ms' }}>
+              <div data-dashboard-id="mttr" className="d-chart-card d-fadeup" style={{ animationDelay: '340ms' }}>
                 <SectionTitle icon={Clock} title="MTTR · Tiempo Promedio de Resolución" iconColor="#065f46" />
                 {mttrTrend.length < 2 ? <EmptyChart /> : (
                   <div style={{ width: '100%', height: 220 }}>
@@ -986,7 +1204,7 @@ const Dashboard = () => {
             </div>
 
             {/* ── Table ── */}
-            <div className="d-table-card d-fadeup" style={{ animationDelay: '260ms' }}>
+            <div data-dashboard-id="registroIncidentes" className="d-table-card d-fadeup" style={{ animationDelay: '260ms' }}>
               <div className="d-table-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg,#fef3c7,#fde68a)', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
