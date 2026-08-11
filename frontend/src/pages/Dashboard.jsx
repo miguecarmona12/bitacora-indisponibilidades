@@ -15,7 +15,6 @@ import {
 /* ─────────────────────────────────────────────────────────
    CONSTANTS
 ───────────────────────────────────────────────────────── */
-const MINUTOS_MES = 43200;
 const PIE_COLORS = ['#7c3aed','#a21caf','#be185d','#c2410c','#b45309','#0e7490','#065f46'];
 const RED_COLORS = ['#7c3aed', '#a21caf', '#be185d', '#c2410c', '#0e7490', '#065f46', '#2563eb', '#b45309'];
 
@@ -36,8 +35,12 @@ const getDispMeta = (d) => {
 const getPeriodoMinutos = (selectedMonth, fechaInicio, fechaFin) => {
   const monthValue = selectedMonth || new Date().toISOString().slice(0, 7);
   const [year, month] = monthValue.split('-').map(Number);
+  const now = new Date();
+  const isCurrentMonth = monthValue === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
-  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+  const monthEnd = (isCurrentMonth && !fechaFin)
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+    : new Date(year, month, 0, 23, 59, 59, 999);
   const start = fechaInicio ? new Date(`${fechaInicio}T00:00:00`) : monthStart;
   const end = fechaFin ? new Date(`${fechaFin}T23:59:59.999`) : monthEnd;
   const minutes = Math.max(1, Math.round((end - start + 1) / 60000));
@@ -438,9 +441,12 @@ const useCountUp = (target, duration = 550) => {
 /* ─────────────────────────────────────────────────────────
    SUB-COMPONENTS
 ───────────────────────────────────────────────────────── */
-const AnimatedValue = ({ value }) => <>{useCountUp(value)}</>;
+const AnimatedValue = ({ value, formatter }) => {
+  const v = useCountUp(value);
+  return <>{formatter ? formatter(v) : v}</>;
+};
 
-const KpiCard = ({ icon: Icon, label, value, sub, gradFrom, gradTo, delay = 0 }) => (
+const KpiCard = ({ icon: Icon, label, value, sub, gradFrom, gradTo, delay = 0, formatter }) => (
   <div className="d-kpi d-fadeup" style={{ animationDelay: `${delay}ms` }}>
     <div className="d-kpi-icon" style={{ background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})` }}>
       <Icon size={16} color="#fff" strokeWidth={2.2} />
@@ -448,7 +454,7 @@ const KpiCard = ({ icon: Icon, label, value, sub, gradFrom, gradTo, delay = 0 })
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       <p className="d-kpi-label">{label}</p>
       <p className="d-kpi-value" style={{ backgroundImage: `linear-gradient(135deg, ${gradFrom}, ${gradTo})` }}>
-        <AnimatedValue value={value} />
+        <AnimatedValue value={value} formatter={formatter} />
       </p>
       {sub && <p className="d-kpi-sub">{sub}</p>}
     </div>
@@ -558,12 +564,13 @@ const Dashboard = () => {
   const [filtroAplicacion, setFiltroAplicacion] = useState('');
   const [filtroCategoria,  setFiltroCategoria]  = useState('');
   const [filtroProducto,   setFiltroProducto]   = useState('');
+  const [filtroAfectacion, setFiltroAfectacion] = useState('');
   const [fechaInicio, setFechaInicio]      = useState('');
   const [fechaFin,    setFechaFin]         = useState('');
   const getCurrentMonth = () => new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
-  const hayFiltros = filtroEmpresa || filtroAplicacion || filtroCategoria || filtroProducto || fechaInicio || fechaFin || selectedMonth !== getCurrentMonth();
+  const hayFiltros = filtroEmpresa || filtroAplicacion || filtroCategoria || filtroProducto || filtroAfectacion || fechaInicio || fechaFin || selectedMonth !== getCurrentMonth();
 
   useEffect(() => {
     (async () => {
@@ -590,6 +597,7 @@ const Dashboard = () => {
       if (filtroAplicacion && inc.aplicacion_id !== parseInt(filtroAplicacion)) return false;
       if (filtroCategoria  && inc.categoria_id  !== parseInt(filtroCategoria))  return false;
       if (filtroProducto   && inc.producto_id   !== parseInt(filtroProducto))   return false;
+      if (filtroAfectacion && inc.tipo_afectacion !== filtroAfectacion)         return false;
       if (fechaInicio && new Date(inc.fecha_inicio) < new Date(fechaInicio))    return false;
       if (fechaFin) {
         const end = new Date(fechaFin); end.setHours(23, 59, 59, 999);
@@ -600,9 +608,12 @@ const Dashboard = () => {
     });
 
     const totalTiempo = Math.round(df.reduce((s, i) => s + i.duracion_minutos, 0) * 10) / 10;
+    const tiempoApps = Math.round(df.filter(i => i.aplicacion_id).reduce((s, i) => s + i.duracion_minutos, 0) * 10) / 10;
+    const tiempoProds = Math.round(df.filter(i => i.producto_id).reduce((s, i) => s + i.duracion_minutos, 0) * 10) / 10;
     const minutosHabilesPeriodo = getPeriodoMinutos(selectedMonth, fechaInicio, fechaFin);
     const prodAfect   = new Set(df.filter(i => i.producto_id).map(i => i.producto_id)).size;
     const appAfect    = new Set(df.filter(i => i.aplicacion_id).map(i => i.aplicacion_id)).size;
+    const empAfect    = new Set(df.filter(i => i.empresa_id).map(i => i.empresa_id)).size;
 
     const appsG = empresaFijada ? aplicaciones.filter(a => a.empresas?.some(e => e.id === empresaFijada)) : aplicaciones;
     const catsG = empresaFijada ? categorias.filter(c => df.some(i => i.categoria_id === c.id)) : categorias;
@@ -621,8 +632,8 @@ const Dashboard = () => {
     const fmt = (map, catalog, key) => Object.keys(map).map(id => {
       const info = catalog.find(x => x.id === parseInt(id));
       const down = Math.round(map[id] * 10) / 10;
-      const disp = parseFloat(((MINUTOS_MES - down) / MINUTOS_MES * 100).toFixed(2));
-      return { nombre: info?.nombre ?? `${key} ${id}`, disponibilidad: disp, inactividad: down };
+      const disp = Math.max(0, parseFloat(((minutosHabilesPeriodo - down) / minutosHabilesPeriodo * 100).toFixed(2)));
+      return { nombre: info?.nombre ?? `${key} ${id}`, disponibilidad: disp, inactividad: down, minutosHabiles: minutosHabilesPeriodo };
     });
 
     const monthsMap = {};
@@ -653,7 +664,7 @@ const Dashboard = () => {
     const minutosAppsPorRed = {};
     redesBase.forEach(e => { minutosAppsPorRed[e.id] = 0; });
     df.forEach(inc => {
-      if (inc.empresa_id && inc.aplicacion_id) {
+      if (inc.empresa_id) {
         minutosAppsPorRed[inc.empresa_id] = (minutosAppsPorRed[inc.empresa_id] ?? 0) + inc.duracion_minutos;
       }
     });
@@ -686,20 +697,20 @@ const Dashboard = () => {
       .map(([mes, data]) => ({ mes, mttr: Math.round((data.total / data.count) * 10) / 10 }));
 
     return {
-      stats: { totalIncidentes: df.length, tiempoInactividad: totalTiempo, productosAfectados: prodAfect, aplicacionesAfectadas: appAfect },
+      stats: { totalIncidentes: df.length, tiempoInactividad: totalTiempo, tiempoApps, tiempoProds, productosAfectados: prodAfect, aplicacionesAfectadas: appAfect, redesAfectadas: empAfect },
       chartDataApps:  fmt(mapApp,  appsG,  'App').sort((a, b) => a.disponibilidad - b.disponibilidad),
       chartDataCats:  fmt(mapCat,  catsG,  'Cat').sort((a, b) => a.disponibilidad - b.disponibilidad),
       chartDataProds: fmt(mapProd, prodsG, 'Prod').filter(p => p.inactividad > 0).sort((a, b) => b.inactividad - a.inactividad),
       monthlyTrend, topEmpresas, mttrTrend, disponibilidadRedes,
       incidentesFiltrados: df,
     };
-  }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, fechaInicio, fechaFin, selectedMonth, aplicaciones, categorias, productos, empresas]);
+  }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, filtroAfectacion, fechaInicio, fechaFin, selectedMonth, aplicaciones, categorias, productos, empresas]);
 
   const aplicacionesFiltradas = empresaFijada ? aplicaciones.filter(a => a.empresas?.some(e => e.id === empresaFijada)) : 
     (filtroEmpresa ? aplicaciones.filter(a => a.empresas?.some(e => e.id === parseInt(filtroEmpresa))) : aplicaciones);
   const categoriasFiltradas   = empresaFijada ? categorias.filter(c => incidentesFiltrados.some(i => i.categoria_id === c.id)) : categorias;
   const productosFiltrados    = empresaFijada ? productos.filter(p => incidentesFiltrados.some(i => i.producto_id === p.id)) : productos;
-  const limpiarFiltros = () => { setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria(''); setFiltroProducto(''); setFechaInicio(''); setFechaFin(''); setSelectedMonth(getCurrentMonth()); };
+  const limpiarFiltros = () => { setFiltroEmpresa(''); setFiltroAplicacion(''); setFiltroCategoria(''); setFiltroProducto(''); setFiltroAfectacion(''); setFechaInicio(''); setFechaFin(''); setSelectedMonth(getCurrentMonth()); };
 
   const [selectedDashboards, setSelectedDashboards] = useState([
     'disponibilidadGeneral',
@@ -1022,6 +1033,15 @@ const Dashboard = () => {
                 </FilterSelect>
               </div>
 
+              <div className="d-filter-group">
+                <span className="d-filter-label"><Zap size={9} />Afectación</span>
+                <FilterSelect value={filtroAfectacion} onChange={e => setFiltroAfectacion(e.target.value)}>
+                  <option value="">Todas</option>
+                  <option value="Caída Total">Caída Total</option>
+                  <option value="Intermitencia">Intermitencia</option>
+                </FilterSelect>
+              </div>
+
               {hayFiltros && (
                 <button className="d-clear-btn" onClick={limpiarFiltros}>
                   <X size={10} />Limpiar
@@ -1050,18 +1070,20 @@ const Dashboard = () => {
         ) : (
           <>
             {/* ── KPI Grid ── */}
-            <div data-dashboard-id="disponibilidadGeneral" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 14, marginBottom: 20 }}>
-              <KpiCard icon={AlertCircle} label="Total Caídas"       value={stats.totalIncidentes}      sub="incidentes registrados"   gradFrom="#dc2626" gradTo="#f87171" delay={0}   />
-              <KpiCard icon={Clock}       label="Mins. Inactividad"  value={stats.tiempoInactividad}    sub="tiempo total acumulado"   gradFrom="#d97706" gradTo="#fbbf24" delay={60}  />
-              <KpiCard icon={AppWindow}   label="Apps Afectadas"     value={stats.aplicacionesAfectadas} sub="con al menos 1 caída"    gradFrom="#7c3aed" gradTo="#8b5cf6" delay={120} />
-              <KpiCard icon={Server}      label="Prods. Afectados"   value={stats.productosAfectados}   sub="con al menos 1 caída"     gradFrom="#a21caf" gradTo="#c026d3" delay={180} />
+            <div data-dashboard-id="disponibilidadGeneral" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, marginBottom: 20 }}>
+              <KpiCard icon={AlertCircle} label="Total Caídas"        value={stats.totalIncidentes}        sub="incidentes registrados"    gradFrom="#dc2626" gradTo="#f87171" delay={0}   />
+              <KpiCard icon={AppWindow}   label="Apps Afectadas"      value={stats.aplicacionesAfectadas}  sub="con al menos 1 caída"     gradFrom="#7c3aed" gradTo="#8b5cf6" delay={60}  />
+              <KpiCard icon={AppWindow}   label="Inactividad · Apps"  value={Math.round(stats.tiempoApps)} sub="min en aplicaciones"      gradFrom="#d97706" gradTo="#fbbf24" delay={90}  formatter={v => Math.round(v).toLocaleString('es-CO')} />
+              <KpiCard icon={Server}      label="Prods. Afectados"    value={stats.productosAfectados}     sub="con al menos 1 caída"     gradFrom="#be185d" gradTo="#f43f5e" delay={120} />
+              <KpiCard icon={Server}      label="Inactividad · Prods" value={Math.round(stats.tiempoProds)} sub="min en productos"         gradFrom="#a21caf" gradTo="#c026d3" delay={180} formatter={v => Math.round(v).toLocaleString('es-CO')} />
+              <KpiCard icon={Wifi}        label="Redes Afectadas"     value={stats.redesAfectadas}         sub="con al menos 1 caída"     gradFrom="#047857" gradTo="#34d399" delay={240} />
             </div>
 
             {/* ── Disponibilidad General por Red ── */}
             <div data-dashboard-id="disponibilidadPorRed" className="d-chart-card d-fadeup" style={{ animationDelay: '110ms', marginBottom: 20 }}>
               <SectionTitle icon={Wifi} title="Disponibilidad General · Redes" iconColor="#0e7490" />
               <p style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 600, marginTop: -6 }}>
-                Calculada solo con novedades asociadas a aplicaciones. Cada red conserva su color en las gráficas.
+                Disponibilidad por red según el total de minutos de caída de sus incidentes. Cada red conserva su color en las gráficas.
               </p>
               {disponibilidadRedes.length === 0 ? <EmptyChart green /> : (
                 <div style={{ width: '100%', height: 300 }}>
