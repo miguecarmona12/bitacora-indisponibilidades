@@ -9,7 +9,7 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
-  LineChart, Line, LabelList
+  LineChart, Line, LabelList, ReferenceLine
 } from 'recharts';
 
 /* ─────────────────────────────────────────────────────────
@@ -590,7 +590,7 @@ const Dashboard = () => {
     })();
   }, [empresaFijada, filtroEmpresa]);
 
-  const { stats, chartDataApps, chartDataCats, chartDataProds, monthlyTrend, topEmpresas, mttrTrend, disponibilidadRedes, incidentesFiltrados } = useMemo(() => {
+  const { stats, chartDataApps, chartDataCats, chartDataProds, monthlyTrend, topEmpresas, mttrTrend, disponibilidadRedes, promedioRedes, incidentesFiltrados } = useMemo(() => {
     const df = incidentes.filter(inc => {
       const ea = empresaFijada ?? (filtroEmpresa ? parseInt(filtroEmpresa) : null);
       if (ea && inc.empresa_id !== ea) return false;
@@ -664,7 +664,7 @@ const Dashboard = () => {
     const minutosAppsPorRed = {};
     redesBase.forEach(e => { minutosAppsPorRed[e.id] = 0; });
     df.forEach(inc => {
-      if (inc.empresa_id) {
+      if (inc.empresa_id && inc.aplicacion_id) {
         minutosAppsPorRed[inc.empresa_id] = (minutosAppsPorRed[inc.empresa_id] ?? 0) + inc.duracion_minutos;
       }
     });
@@ -682,6 +682,9 @@ const Dashboard = () => {
         };
       })
       .sort((a, b) => a.disponibilidad - b.disponibilidad);
+    const promedioRedes = disponibilidadRedes.length
+      ? parseFloat((disponibilidadRedes.reduce((s, e) => s + e.disponibilidad, 0) / disponibilidadRedes.length).toFixed(2))
+      : 0;
 
     const mttrMap = {};
     df.forEach(inc => {
@@ -701,7 +704,7 @@ const Dashboard = () => {
       chartDataApps:  fmt(mapApp,  appsG,  'App').sort((a, b) => a.disponibilidad - b.disponibilidad),
       chartDataCats:  fmt(mapCat,  catsG,  'Cat').sort((a, b) => a.disponibilidad - b.disponibilidad),
       chartDataProds: fmt(mapProd, prodsG, 'Prod').filter(p => p.inactividad > 0).sort((a, b) => b.inactividad - a.inactividad),
-      monthlyTrend, topEmpresas, mttrTrend, disponibilidadRedes,
+      monthlyTrend, topEmpresas, mttrTrend, disponibilidadRedes, promedioRedes,
       incidentesFiltrados: df,
     };
   }, [incidentes, empresaFijada, filtroEmpresa, filtroAplicacion, filtroCategoria, filtroProducto, filtroAfectacion, fechaInicio, fechaFin, selectedMonth, aplicaciones, categorias, productos, empresas]);
@@ -1083,7 +1086,7 @@ const Dashboard = () => {
             <div data-dashboard-id="disponibilidadPorRed" className="d-chart-card d-fadeup" style={{ animationDelay: '110ms', marginBottom: 20 }}>
               <SectionTitle icon={Wifi} title="Disponibilidad General · Redes" iconColor="#0e7490" />
               <p style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 600, marginTop: -6 }}>
-                Disponibilidad por red según el total de minutos de caída de sus incidentes. Cada red conserva su color en las gráficas.
+                Disponibilidad por red según los minutos de caída de sus aplicaciones. La línea punteada marca el promedio. Cada red conserva su color en las gráficas.
               </p>
               {disponibilidadRedes.length === 0 ? <EmptyChart green /> : (
                 <div style={{ width: '100%', height: 300 }}>
@@ -1093,6 +1096,8 @@ const Dashboard = () => {
                       <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{ ...axisStyle, fontSize: 10 }} angle={-25} textAnchor="end" interval={0} />
                       <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ ...axisStyle, fill: '#d4d4d8' }} tickFormatter={v => `${v}%`} />
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--surface-2)' }} />
+                      <ReferenceLine y={promedioRedes} stroke="#71717a" strokeDasharray="6 4" strokeWidth={1.5}
+                        label={{ value: `Promedio ${promedioRedes}%`, position: 'insideTopRight', fill: '#71717a', fontSize: 10, fontWeight: 700 }} />
                       <Bar isAnimationActive={false} dataKey="disponibilidad" radius={[5, 5, 0, 0]} barSize={26}>
                         {disponibilidadRedes.map((e) => <Cell key={e.id} fill={e.color} />)}
                         <LabelList dataKey="disponibilidad" position="top" fill="#52525b" fontSize={10} fontWeight="bold" formatter={(value) => `${Number(value).toFixed(2)}%`} />
