@@ -615,7 +615,8 @@ const Dashboard = () => {
     const appAfect    = new Set(df.filter(i => i.aplicacion_id).map(i => i.aplicacion_id)).size;
     const empAfect    = new Set(df.filter(i => i.empresa_id).map(i => i.empresa_id)).size;
 
-    const appsG = empresaFijada ? aplicaciones.filter(a => a.empresas?.some(e => e.id === empresaFijada)) : aplicaciones;
+    const appsG = empresaFijada ? aplicaciones.filter(a => a.empresas?.some(e => e.id === empresaFijada)) :
+      (filtroEmpresa ? aplicaciones.filter(a => a.empresas?.some(e => e.id === parseInt(filtroEmpresa))) : aplicaciones);
     const catsG = empresaFijada ? categorias.filter(c => df.some(i => i.categoria_id === c.id)) : categorias;
     const prodsG = empresaFijada ? productos.filter(p => df.some(i => i.producto_id === p.id)) : productos;
 
@@ -662,23 +663,31 @@ const Dashboard = () => {
         ? empresas.filter(e => e.id === parseInt(filtroEmpresa))
         : empresas;
     const minutosAppsPorRed = {};
-    redesBase.forEach(e => { minutosAppsPorRed[e.id] = 0; });
+    const appsPorRed = {};
+    redesBase.forEach(e => { minutosAppsPorRed[e.id] = 0; appsPorRed[e.id] = 0; });
     df.forEach(inc => {
       if (inc.empresa_id && inc.aplicacion_id) {
         minutosAppsPorRed[inc.empresa_id] = (minutosAppsPorRed[inc.empresa_id] ?? 0) + inc.duracion_minutos;
       }
     });
-    const disponibilidadRedes = Object.entries(minutosAppsPorRed)
-      .map(([id, minutos]) => {
-        const inactividad = Math.round(minutos * 10) / 10;
-        const disponibilidad = Math.max(0, parseFloat((((minutosHabilesPeriodo - inactividad) / minutosHabilesPeriodo) * 100).toFixed(2)));
+    redesBase.forEach(e => {
+      appsPorRed[e.id] = aplicaciones.filter(a => a.empresas?.some(x => x.id === e.id)).length;
+    });
+    const disponibilidadRedes = redesBase
+      .map(e => {
+        const numApps = appsPorRed[e.id] || 0;
+        const minutosAppsTotal = numApps * minutosHabilesPeriodo;
+        const inactividad = Math.round((minutosAppsPorRed[e.id] || 0) * 10) / 10;
+        const disponibilidad = numApps === 0
+          ? 100
+          : Math.max(0, parseFloat((((minutosAppsTotal - inactividad) / minutosAppsTotal) * 100).toFixed(2)));
         return {
-          id: parseInt(id),
-          nombre: empresas.find(e => e.id === parseInt(id))?.nombre || `Red ${id}`,
+          id: e.id,
+          nombre: e.nombre,
           disponibilidad,
           inactividad,
-          minutosHabiles: minutosHabilesPeriodo,
-          color: getRedColor(id),
+          minutosHabiles: minutosAppsTotal,
+          color: getRedColor(e.id),
         };
       })
       .sort((a, b) => a.disponibilidad - b.disponibilidad);
@@ -1086,7 +1095,7 @@ const Dashboard = () => {
             <div data-dashboard-id="disponibilidadPorRed" className="d-chart-card d-fadeup" style={{ animationDelay: '110ms', marginBottom: 20 }}>
               <SectionTitle icon={Wifi} title="Disponibilidad General · Redes" iconColor="#0e7490" />
               <p style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 600, marginTop: -6 }}>
-                Disponibilidad por red según los minutos de caída de sus aplicaciones. La línea punteada marca el promedio. Cada red conserva su color en las gráficas.
+                Promedio de la disponibilidad de las aplicaciones de cada red. La línea punteada marca el promedio entre redes. Cada red conserva su color en las gráficas.
               </p>
               {disponibilidadRedes.length === 0 ? <EmptyChart green /> : (
                 <div style={{ width: '100%', height: 300 }}>
