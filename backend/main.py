@@ -867,13 +867,10 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
     return incidente
 
 @app.delete("/incidentes/{incidente_id}")
-def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
+def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
     incidente = db.query(models.Incidente).filter(models.Incidente.id == incidente_id).first()
     if not incidente:
         raise HTTPException(status_code=404, detail="Incidente no encontrado")
-    if current_user.rol == "tecnico" and current_user.empresa_id is not None:
-        if incidente.empresa_id != current_user.empresa_id:
-            raise HTTPException(status_code=403, detail="No autorizado para eliminar incidentes de otra empresa")
     entidad_id = incidente.id
     crear_notificaciones(db, "incidente_eliminado", f"Incidente #{entidad_id}", f"{current_user.username} eliminó el incidente #{entidad_id}")
     db.delete(incidente)

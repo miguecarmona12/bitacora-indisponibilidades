@@ -67,7 +67,7 @@ replacements = [
     (r'def update_incidente\(incidente_id: int, datos: schemas\.IncidenteUpdate, db: Session = Depends\(get_db\)\):',
      r'def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):'),
     (r'def delete_incidente\(incidente_id: int, db: Session = Depends\(get_db\)\):',
-     r'def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):'),
+     r'def delete_incidente(incidente_id: int, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):'),
 ]
 
 for search, replace in replacements:
