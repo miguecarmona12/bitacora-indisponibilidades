@@ -791,8 +791,6 @@ def get_incidentes(
     if current_user.rol != "admin":
         if current_user.empresa_id:
             q = q.filter(models.Incidente.empresa_id == current_user.empresa_id)
-        else:
-            q = q.filter(models.Incidente.usuario_id == current_user.id)
     if empresa_id:
         q = q.filter(models.Incidente.empresa_id == empresa_id)
     if aplicacion_id:
@@ -893,8 +891,6 @@ def exportar_incidentes(db: Session = Depends(get_db), current_user: models.Usua
     if current_user.rol != "admin":
         if current_user.empresa_id:
             q = q.filter(models.Incidente.empresa_id == current_user.empresa_id)
-        else:
-            q = q.filter(models.Incidente.usuario_id == current_user.id)
     incidentes = q.order_by(models.Incidente.fecha_inicio.desc()).all()
 
     wb = Workbook()
