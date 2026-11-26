@@ -318,7 +318,7 @@ def crear_notificaciones(db: Session, tipo: str, titulo: str, mensaje: str = Non
 # ==============================
 CAMPOS_DOCUMENTACION_GLPI = ("causa_raiz", "solucion", "accion_correctiva")
 
-def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valores_anteriores: dict = None, usuario_actual=None):
+def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valores_anteriores: dict = None):
     """Publica la documentación del incidente como comentario (followup) en el ticket GLPI.
 
     Se dispara cuando el incidente tiene ticket GLPI y al menos uno de los campos
@@ -345,7 +345,7 @@ def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valor
             return True, "Sin cambios que sincronizar"
 
     try:
-        contenido = glpi_service.construir_contenido_followup(incidente, usuario_actual)
+        contenido = glpi_service.construir_contenido_followup(incidente)
         glpi_service.crear_followup(incidente.ticket, contenido)
         incidente.glpi_sync_at = datetime.now()
         db.commit()
@@ -871,7 +871,7 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
     db.refresh(nuevo)
     emit_event({"type": "incidente_creado", "id": nuevo.id, "usuario": current_user.username})
     enviar_notificacion_incidente(nuevo, db)
-    intentar_sincronizacion_glpi(db, nuevo, usuario_actual=current_user)
+    intentar_sincronizacion_glpi(db, nuevo)
     return nuevo
 
 @app.post("/incidentes/bulk", response_model=List[schemas.IncidenteResponse])
@@ -915,7 +915,7 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
     db.commit()
     db.refresh(incidente)
     emit_event({"type": "incidente_actualizado", "id": incidente.id, "usuario": current_user.username})
-    intentar_sincronizacion_glpi(db, incidente, valores_anteriores=antes, usuario_actual=current_user)
+    intentar_sincronizacion_glpi(db, incidente, valores_anteriores=antes)
     return incidente
 
 @app.delete("/incidentes/{incidente_id}")

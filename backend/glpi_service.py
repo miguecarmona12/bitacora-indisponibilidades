@@ -123,7 +123,7 @@ def obtener_access_token(forzar: bool = False) -> str:
         return token
 
 
-def construir_contenido_followup(incidente, usuario=None) -> str:
+def construir_contenido_followup(incidente) -> str:
     """Genera el HTML del comentario de documentación que se publica en el ticket GLPI.
 
     Incluye una sección por cada campo documentado con contenido:
@@ -147,13 +147,8 @@ def construir_contenido_followup(incidente, usuario=None) -> str:
         texto = html.escape(contenido.strip()).replace("\n", "<br>")
         partes.append(f"<p><strong>{titulo}</strong><br>{texto}</p>")
 
-    pie = []
-    if usuario is not None:
-        pie.append(f"Registrado por: {html.escape(getattr(usuario, 'username', str(usuario)))}")
     if getattr(incidente, "fecha_fin", None):
-        pie.append(f"Fecha de cierre: {incidente.fecha_fin.strftime('%Y-%m-%d %H:%M')}")
-    if pie:
-        partes.append(f"<p><em>{html.escape(' · '.join(pie))}</em></p>")
+        partes.append(f"<p><em>Fecha de cierre: {incidente.fecha_fin.strftime('%Y-%m-%d %H:%M')}</em></p>")
 
     return "".join(partes)
 

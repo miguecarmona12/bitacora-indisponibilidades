@@ -34,10 +34,6 @@ class IncidenteFake:
     fecha_fin = None
 
 
-class UsuarioFake:
-    username = "analista.test"
-
-
 def test_extraer_ticket_id():
     assert glpi_service.extraer_ticket_id("736774") == 736774
     assert glpi_service.extraer_ticket_id("#736774") == 736774
@@ -49,7 +45,7 @@ def test_extraer_ticket_id():
 
 
 def test_construir_contenido_followup():
-    contenido = glpi_service.construir_contenido_followup(IncidenteFake(), UsuarioFake())
+    contenido = glpi_service.construir_contenido_followup(IncidenteFake())
     assert "DOCUMENTACIÓN DEL INCIDENTE" in contenido
     assert "Incidente #42" in contenido
     assert "SITUACIÓN" in contenido
@@ -60,7 +56,7 @@ def test_construir_contenido_followup():
     assert "Se renovó el certificado y se restableció el servicio" in contenido
     assert "ACCIÓN CORRECTIVA" in contenido
     assert "Reinicio del servicio y parche aplicado" in contenido
-    assert "analista.test" in contenido
+    assert "Registrado por" not in contenido
     assert "<p>" in contenido
 
 
@@ -74,12 +70,28 @@ def test_construir_contenido_omite_secciones_vacias():
         accion_correctiva = None
         fecha_fin = None
 
-    contenido = glpi_service.construir_contenido_followup(Parcial(), None)
+    contenido = glpi_service.construir_contenido_followup(Parcial())
     assert "SITUACIÓN" not in contenido
     assert "CAUSA RAÍZ" in contenido
     assert "Falla de disco" in contenido
     assert "SOLUCIÓN APLICADA" not in contenido
     assert "ACCIÓN CORRECTIVA" not in contenido
+
+
+def test_construir_contenido_fecha_de_cierre():
+    class ConFechaFin:
+        id = 3
+        ticket = "3"
+        motivo = None
+        causa_raiz = "x"
+        solucion = None
+        accion_correctiva = None
+        fecha_fin = None
+
+    import datetime as _dt
+    ConFechaFin.fecha_fin = _dt.datetime(2026, 11, 26, 12, 30)
+    contenido = glpi_service.construir_contenido_followup(ConFechaFin())
+    assert "Fecha de cierre: 2026-11-26 12:30" in contenido
 
 
 def test_construir_contenido_escapa_html():
@@ -92,7 +104,7 @@ def test_construir_contenido_escapa_html():
         accion_correctiva = None
         fecha_fin = None
 
-    contenido = glpi_service.construir_contenido_followup(Peligroso(), None)
+    contenido = glpi_service.construir_contenido_followup(Peligroso())
     assert "<script>" not in contenido
     assert "&lt;script&gt;" in contenido
 
