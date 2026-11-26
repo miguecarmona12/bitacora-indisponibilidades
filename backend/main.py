@@ -122,6 +122,23 @@ except Exception:
 
 try:
     with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS configuracion_glpi (
+                id SERIAL PRIMARY KEY,
+                base_url VARCHAR(255) NOT NULL,
+                client_id VARCHAR(255) NOT NULL,
+                client_secret VARCHAR(500) NOT NULL,
+                username VARCHAR(100) NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                profile_id VARCHAR(20),
+                activo BOOLEAN DEFAULT TRUE
+            )
+        """))
+except Exception:
+    pass
+
+try:
+    with engine.begin() as conn:
         conn.execute(text("ALTER TABLE incidentes ADD COLUMN estado VARCHAR(20) DEFAULT 'abierto'"))
 except Exception:
     pass
@@ -318,21 +335,63 @@ def crear_notificaciones(db: Session, tipo: str, titulo: str, mensaje: str = Non
 # ==============================
 CAMPOS_DOCUMENTACION_GLPI = ("causa_raiz", "solucion", "accion_correctiva")
 
+def _enmascarar(valor: str) -> str:
+    """Enmascara un secreto dejando ver solo los últimos 4 caracteres."""
+    if not valor:
+        return ""
+    return "••••••" + valor[-4:] if len(valor) > 4 else "••••"
+
+def obtener_config_glpi(db: Session) -> dict:
+    """Devuelve la configuración GLPI: la de BD (panel de ajustes) o, si no hay,
+    la de variables de entorno. Respeta el flag 'activo' de la BD.
+
+    Devuelve un dict listo para glpi_service, o None si no hay configuración activa.
+    """
+    fila = db.query(models.ConfiguracionGLPI).first()
+    if fila:
+        if not fila.activo:
+            return None
+        return {
+            "base_url": fila.base_url,
+            "client_id": fila.client_id,
+            "client_secret": fila.client_secret,
+            "username": fila.username,
+            "password": fila.password,
+            "profile_id": fila.profile_id or "",
+        }
+    env_config = {
+        "base_url": os.getenv("GLPI_BASE_URL", ""),
+        "client_id": os.getenv("GLPI_CLIENT_ID", ""),
+        "client_secret": os.getenv("GLPI_CLIENT_SECRET", ""),
+        "username": os.getenv("GLPI_USERNAME", ""),
+        "password": os.getenv("GLPI_PASSWORD", ""),
+        "profile_id": os.getenv("GLPI_PROFILE_ID", ""),
+    }
+    return env_config if glpi_service.config_valida(env_config) else None
+
 def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valores_anteriores: dict = None):
     """Publica la documentación del incidente como comentario (followup) en el ticket GLPI.
 
     Se dispara cuando el incidente tiene ticket GLPI y al menos uno de los campos
     de documentación (Causa Raíz, Solución Aplicada o Acción Correctiva) con contenido.
-    Nunca lanza excepciones: devuelve (exitoso, detalle).
+    Nunca lanza excepciones ni impide el guardado: devuelve (estado, detalle).
+
+    Estados:
+      - "desactivado": GLPI no configurado, sin ticket o sin documentación (no aplica)
+      - "publicado":   comentario publicado en GLPI
+      - "sin_match":   el ticket no existe en GLPI (se guarda igual, sin comentario)
+      - "error":       GLPI configurado pero falló el envío (reintento al guardar de nuevo)
+
     En updates solo reenvía si alguno de esos campos o el ticket cambiaron,
     o si el incidente aún no se ha sincronizado (reintento).
     """
-    if not glpi_service.glpi_configurado():
-        return False, "Integración GLPI no configurada"
+    config = obtener_config_glpi(db)
+    if config is None:
+        return "desactivado", "Integración GLPI no configurada"
     if not (incidente.ticket or "").strip():
-        return False, "Incidente sin ticket GLPI"
+        return "desactivado", "Incidente sin ticket GLPI"
     if not any((getattr(incidente, campo) or "").strip() for campo in CAMPOS_DOCUMENTACION_GLPI):
-        return False, "Incidente sin documentación (causa raíz, solución o acción correctiva)"
+        return "desactivado", "Incidente sin documentación (causa raíz, solución o acción correctiva)"
 
     if valores_anteriores is not None:
         doc_cambio = any(
@@ -342,19 +401,25 @@ def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valor
         ticket_cambio = (valores_anteriores.get("ticket") or "") != (incidente.ticket or "")
         ya_sincronizado = incidente.glpi_sync_at is not None
         if not (doc_cambio or ticket_cambio or not ya_sincronizado):
-            return True, "Sin cambios que sincronizar"
+            return "publicado", "Sin cambios que sincronizar"
 
     try:
         contenido = glpi_service.construir_contenido_followup(incidente)
-        glpi_service.crear_followup(incidente.ticket, contenido)
+        glpi_service.crear_followup(config, incidente.ticket, contenido)
         incidente.glpi_sync_at = datetime.now()
         db.commit()
         db.refresh(incidente)
         logger.info(f"GLPI: documentación comentada en el ticket '{incidente.ticket}' (incidente #{incidente.id})")
-        return True, "Comentario publicado en GLPI"
+        return "publicado", "Comentario publicado en GLPI"
+    except glpi_service.GlpiError as e:
+        if e.codigo_http == 404:
+            logger.info(f"GLPI: el ticket '{incidente.ticket}' no existe (incidente #{incidente.id}); se guarda sin comentario")
+            return "sin_match", f"El ticket {incidente.ticket} no existe en GLPI"
+        logger.warning(f"GLPI: falló la sincronización del incidente #{incidente.id}: {e}")
+        return "error", str(e)
     except Exception as e:
         logger.warning(f"GLPI: falló la sincronización del incidente #{incidente.id}: {e}")
-        return False, str(e)
+        return "error", str(e)
 
 @app.on_event("startup")
 async def startup_event():
@@ -428,6 +493,107 @@ def update_feature_flag(flag: str, body: schemas.FeatureFlagUpdate, db: Session 
     db.commit()
     db.refresh(f)
     return f
+
+# ==============================
+# CONFIGURACIÓN GLPI (SOLO ADMIN)
+# ==============================
+@app.get("/configuracion/glpi", response_model=schemas.ConfiguracionGLPIResponse)
+def get_configuracion_glpi(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    fila = db.query(models.ConfiguracionGLPI).first()
+    if fila:
+        return schemas.ConfiguracionGLPIResponse(
+            base_url=fila.base_url,
+            client_id=fila.client_id,
+            client_secret=_enmascarar(fila.client_secret),
+            username=fila.username,
+            password=_enmascarar(fila.password),
+            profile_id=fila.profile_id,
+            activo=fila.activo,
+            origen="bd",
+            configurado=True,
+        )
+    env_config = {
+        "base_url": os.getenv("GLPI_BASE_URL", ""),
+        "client_id": os.getenv("GLPI_CLIENT_ID", ""),
+        "client_secret": os.getenv("GLPI_CLIENT_SECRET", ""),
+        "username": os.getenv("GLPI_USERNAME", ""),
+        "password": os.getenv("GLPI_PASSWORD", ""),
+        "profile_id": os.getenv("GLPI_PROFILE_ID", ""),
+    }
+    if glpi_service.config_valida(env_config):
+        return schemas.ConfiguracionGLPIResponse(
+            base_url=env_config["base_url"],
+            client_id=env_config["client_id"],
+            client_secret=_enmascarar(env_config["client_secret"]),
+            username=env_config["username"],
+            password=_enmascarar(env_config["password"]),
+            profile_id=env_config["profile_id"] or None,
+            activo=True,
+            origen="env",
+            configurado=True,
+        )
+    return schemas.ConfiguracionGLPIResponse(activo=False, origen=None, configurado=False)
+
+@app.put("/configuracion/glpi", response_model=schemas.ConfiguracionGLPIResponse)
+def update_configuracion_glpi(body: schemas.ConfiguracionGLPIUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    fila = db.query(models.ConfiguracionGLPI).first()
+    datos = body.dict(exclude_unset=True)
+
+    if fila is None:
+        obligatorios = ("base_url", "client_id", "client_secret", "username", "password")
+        faltan = [c for c in obligatorios if not (datos.get(c) or "").strip()]
+        if faltan:
+            raise HTTPException(status_code=400, detail=f"Faltan datos obligatorios: {', '.join(faltan)}")
+        fila = models.ConfiguracionGLPI(
+            base_url=datos["base_url"].strip(),
+            client_id=datos["client_id"].strip(),
+            client_secret=datos["client_secret"].strip(),
+            username=datos["username"].strip(),
+            password=datos["password"].strip(),
+            profile_id=(datos.get("profile_id") or "").strip() or None,
+            activo=datos.get("activo", True),
+        )
+        db.add(fila)
+    else:
+        # Campos vacíos = mantener el valor actual (útil para secretos enmascarados)
+        for campo in ("base_url", "client_id", "client_secret", "username", "password", "profile_id"):
+            if datos.get(campo) is not None and str(datos[campo]).strip():
+                setattr(fila, campo, str(datos[campo]).strip())
+        if datos.get("activo") is not None:
+            fila.activo = datos["activo"]
+
+    db.commit()
+    db.refresh(fila)
+    logger.info(f"GLPI: configuración actualizada por {current_user.username}")
+    return schemas.ConfiguracionGLPIResponse(
+        base_url=fila.base_url,
+        client_id=fila.client_id,
+        client_secret=_enmascarar(fila.client_secret),
+        username=fila.username,
+        password=_enmascarar(fila.password),
+        profile_id=fila.profile_id,
+        activo=fila.activo,
+        origen="bd",
+        configurado=True,
+    )
+
+@app.post("/configuracion/glpi/probar")
+def probar_configuracion_glpi(body: schemas.ConfiguracionGLPIUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    # Prueba con los datos del body; los vacíos se toman de la config efectiva (BD/env)
+    config_efectiva = obtener_config_glpi(db) or {}
+    datos = body.dict(exclude_unset=True)
+    config_prueba = {
+        "base_url": (str(datos.get("base_url")).strip() if datos.get("base_url") else "") or config_efectiva.get("base_url", ""),
+        "client_id": (str(datos.get("client_id")).strip() if datos.get("client_id") else "") or config_efectiva.get("client_id", ""),
+        "client_secret": (str(datos.get("client_secret")).strip() if datos.get("client_secret") else "") or config_efectiva.get("client_secret", ""),
+        "username": (str(datos.get("username")).strip() if datos.get("username") else "") or config_efectiva.get("username", ""),
+        "password": (str(datos.get("password")).strip() if datos.get("password") else "") or config_efectiva.get("password", ""),
+        "profile_id": (str(datos.get("profile_id")).strip() if datos.get("profile_id") else "") or config_efectiva.get("profile_id", ""),
+    }
+    ok, mensaje = glpi_service.probar_conexion(config_prueba)
+    if not ok:
+        raise HTTPException(status_code=400, detail=mensaje)
+    return {"ok": True, "mensaje": mensaje}
 
 # ==============================
 # NOTIFICACIONES
@@ -871,7 +1037,8 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
     db.refresh(nuevo)
     emit_event({"type": "incidente_creado", "id": nuevo.id, "usuario": current_user.username})
     enviar_notificacion_incidente(nuevo, db)
-    intentar_sincronizacion_glpi(db, nuevo)
+    estado, _ = intentar_sincronizacion_glpi(db, nuevo)
+    nuevo.glpi_sync_estado = estado
     return nuevo
 
 @app.post("/incidentes/bulk", response_model=List[schemas.IncidenteResponse])
@@ -892,6 +1059,8 @@ def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Sessio
     for n in nuevos:
         db.refresh(n)
         emit_event({"type": "incidente_creado", "id": n.id, "usuario": current_user.username})
+        estado, _ = intentar_sincronizacion_glpi(db, n)
+        n.glpi_sync_estado = estado
     return nuevos
 
 @app.put("/incidentes/{incidente_id}", response_model=schemas.IncidenteResponse)
@@ -915,7 +1084,8 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
     db.commit()
     db.refresh(incidente)
     emit_event({"type": "incidente_actualizado", "id": incidente.id, "usuario": current_user.username})
-    intentar_sincronizacion_glpi(db, incidente, valores_anteriores=antes)
+    estado, _ = intentar_sincronizacion_glpi(db, incidente, valores_anteriores=antes)
+    incidente.glpi_sync_estado = estado
     return incidente
 
 @app.delete("/incidentes/{incidente_id}")

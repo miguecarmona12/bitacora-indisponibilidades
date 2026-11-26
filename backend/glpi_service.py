@@ -1,22 +1,23 @@
 """
 Cliente de integración con GLPI 12 (High-Level API v2).
 
-Publica la "Acción Correctiva" de un incidente como comentario (followup)
-en el ticket original de GLPI.
+Publica la documentación del incidente (SITUACIÓN / CAUSA RAÍZ / SOLUCIÓN /
+ACCIÓN CORRECTIVA) como comentario (followup) en el ticket original de GLPI.
 
 Autenticación: OAuth2 Password Grant contra /api.php/token
 Followups:      POST /api.php/v2/Assistance/Ticket/{id}/Timeline/Followup
 
-Configuración (variables de entorno):
-    GLPI_BASE_URL       ej: https://sos.ux.technology
-    GLPI_CLIENT_ID      client_id del OAuth Client (Configuración > Clientes OAuth)
-    GLPI_CLIENT_SECRET  client_secret del OAuth Client
-    GLPI_USERNAME       usuario GLPI de servicio
-    GLPI_PASSWORD       contraseña del usuario GLPI
+La configuración es un dict con las claves:
+    base_url       ej: https://sos.ux.technology
+    client_id      client_id del OAuth Client (Configuración > Clientes OAuth)
+    client_secret  client_secret del OAuth Client
+    username       usuario GLPI de servicio
+    password       contraseña del usuario GLPI
+    profile_id     (opcional) ID del perfil GLPI con permisos de seguimientos
 """
+import hashlib
 import html
 import json
-import os
 import re
 import threading
 import time
@@ -26,19 +27,11 @@ import urllib.request
 
 from loguru import logger
 
-GLPI_BASE_URL = (os.getenv("GLPI_BASE_URL") or "").rstrip("/")
-GLPI_CLIENT_ID = os.getenv("GLPI_CLIENT_ID", "")
-GLPI_CLIENT_SECRET = os.getenv("GLPI_CLIENT_SECRET", "")
-GLPI_USERNAME = os.getenv("GLPI_USERNAME", "")
-GLPI_PASSWORD = os.getenv("GLPI_PASSWORD", "")
-# ID del perfil GLPI con permisos de añadir seguimientos (ej: perfil técnico).
-# Opcional: si el perfil por defecto del usuario ya sirve, dejar vacío.
-GLPI_PROFILE_ID = os.getenv("GLPI_PROFILE_ID", "")
-
 _TIMEOUT = 15  # segundos por petición HTTP
 
 # Caché del access token (expira en ~1h según GLPI_OAUTH_ACCESS_TOKEN_EXPIRES)
-_token_cache = {"access_token": None, "expires_at": 0.0}
+# keyed por huella de la configuración para invalidarse si cambian las credenciales
+_token_cache = {"huella": None, "access_token": None, "expires_at": 0.0}
 _token_lock = threading.Lock()
 
 
@@ -50,9 +43,17 @@ class GlpiError(Exception):
         self.codigo_http = codigo_http
 
 
-def glpi_configurado() -> bool:
-    """Indica si la integración tiene todas las credenciales necesarias."""
-    return bool(GLPI_BASE_URL and GLPI_CLIENT_ID and GLPI_CLIENT_SECRET and GLPI_USERNAME and GLPI_PASSWORD)
+def config_valida(config: dict) -> bool:
+    """Indica si la configuración tiene los datos mínimos para operar."""
+    if not config:
+        return False
+    return all((config.get(k) or "").strip() for k in ("base_url", "client_id", "client_secret", "username", "password"))
+
+
+def _huella_config(config: dict) -> str:
+    """Huella estable de la configuración para la caché del token."""
+    material = "|".join((config.get(k) or "") for k in ("base_url", "client_id", "client_secret", "username", "password"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 def extraer_ticket_id(ticket_ref: str) -> int | None:
@@ -86,26 +87,29 @@ def _peticion(url: str, data=None, headers=None, method="GET") -> dict:
         raise GlpiError(f"GLPI devolvió una respuesta no válida: {e}") from e
 
 
-def obtener_access_token(forzar: bool = False) -> str:
+def obtener_access_token(config: dict, forzar: bool = False) -> str:
     """Obtiene (y cachea) un access token OAuth2 con Password Grant."""
-    with _token_lock:
-        if not forzar and _token_cache["access_token"] and time.time() < _token_cache["expires_at"]:
-            return _token_cache["access_token"]
+    if not config_valida(config):
+        raise GlpiError("Integración GLPI no configurada (faltan datos de conexión)")
 
-        if not glpi_configurado():
-            raise GlpiError("Integración GLPI no configurada (faltan variables GLPI_*)")
+    huella = _huella_config(config)
+    base_url = config["base_url"].rstrip("/")
+
+    with _token_lock:
+        if not forzar and _token_cache["access_token"] and _token_cache["huella"] == huella and time.time() < _token_cache["expires_at"]:
+            return _token_cache["access_token"]
 
         datos = urllib.parse.urlencode({
             "grant_type": "password",
-            "client_id": GLPI_CLIENT_ID,
-            "client_secret": GLPI_CLIENT_SECRET,
-            "username": GLPI_USERNAME,
-            "password": GLPI_PASSWORD,
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "username": config["username"],
+            "password": config["password"],
             "scope": "api",
         }).encode("utf-8")
 
         respuesta = _peticion(
-            f"{GLPI_BASE_URL}/api.php/token",
+            f"{base_url}/api.php/token",
             data=datos,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             method="POST",
@@ -117,10 +121,23 @@ def obtener_access_token(forzar: bool = False) -> str:
             raise GlpiError("GLPI no devolvió access_token en la autenticación OAuth2")
 
         # Margen de 60s para no usar un token a punto de expirar
+        _token_cache["huella"] = huella
         _token_cache["access_token"] = token
         _token_cache["expires_at"] = time.time() + max(60, expira_en - 60)
         logger.debug("GLPI: nuevo access token OAuth2 obtenido")
         return token
+
+
+def probar_conexion(config: dict) -> tuple[bool, str]:
+    """Valida que la configuración funcie: pide un token OAuth2.
+
+    Devuelve (exitoso, mensaje). Nunca lanza excepciones.
+    """
+    try:
+        obtener_access_token(config, forzar=True)
+        return True, "Conexión exitosa con GLPI: credenciales válidas"
+    except GlpiError as e:
+        return False, str(e)
 
 
 def construir_contenido_followup(incidente) -> str:
@@ -153,7 +170,7 @@ def construir_contenido_followup(incidente) -> str:
     return "".join(partes)
 
 
-def crear_followup(ticket_ref: str, contenido_html: str, privado: bool = False) -> dict:
+def crear_followup(config: dict, ticket_ref: str, contenido_html: str, privado: bool = False) -> dict:
     """Publica un comentario (ITILFollowup) en el ticket de GLPI.
 
     Devuelve la respuesta de GLPI ({"id": ..., "href": ...}).
@@ -163,7 +180,8 @@ def crear_followup(ticket_ref: str, contenido_html: str, privado: bool = False) 
     if not ticket_id:
         raise GlpiError(f"No se pudo extraer un ID numérico de ticket de: '{ticket_ref}'")
 
-    token = obtener_access_token()
+    base_url = config["base_url"].rstrip("/")
+    token = obtener_access_token(config)
     body = json.dumps({
         "itemtype": "Ticket",
         "items_id": ticket_id,
@@ -171,14 +189,15 @@ def crear_followup(ticket_ref: str, contenido_html: str, privado: bool = False) 
         "is_private": privado,
     }).encode("utf-8")
 
-    url = f"{GLPI_BASE_URL}/api.php/v2/Assistance/Ticket/{ticket_id}/Timeline/Followup"
+    url = f"{base_url}/api.php/v2/Assistance/Ticket/{ticket_id}/Timeline/Followup"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    if GLPI_PROFILE_ID:
-        headers["GLPI-Profile"] = GLPI_PROFILE_ID
+    profile_id = (config.get("profile_id") or "").strip()
+    if profile_id:
+        headers["GLPI-Profile"] = profile_id
 
     try:
         return _peticion(url, data=body, headers=headers, method="POST")
@@ -186,6 +205,6 @@ def crear_followup(ticket_ref: str, contenido_html: str, privado: bool = False) 
         # El token pudo expirar entre la obtención y el uso: reintentar solo si es 401
         if e.codigo_http != 401:
             raise
-        token = obtener_access_token(forzar=True)
+        token = obtener_access_token(config, forzar=True)
         headers["Authorization"] = f"Bearer {token}"
         return _peticion(url, data=body, headers=headers, method="POST")

@@ -227,6 +227,20 @@ export const bitacoraService = {
     return response.data;
   },
 
+  // Configuración GLPI (solo admin)
+  getConfigGlpi: async () => {
+    const response = await api.get('/configuracion/glpi');
+    return response.data;
+  },
+  updateConfigGlpi: async (config) => {
+    const response = await api.put('/configuracion/glpi', config);
+    return response.data;
+  },
+  probarConfigGlpi: async (config) => {
+    const response = await api.post('/configuracion/glpi/probar', config);
+    return response.data;
+  },
+
   // Adjuntos
   getAdjuntos: async (incidenteId) => {
     const response = await api.get(`/incidentes/${incidenteId}/adjuntos`);

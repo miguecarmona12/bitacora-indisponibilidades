@@ -25,3 +25,6 @@ yarn-error.log*
 .idea/
 .DS_Store
 *.log
+
+# BDs de prueba locales
+test_*.db

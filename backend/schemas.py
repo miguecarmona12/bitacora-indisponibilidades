@@ -159,6 +159,7 @@ class IncidenteResponse(IncidenteBase):
     id: int
     usuario_id: int | None = None
     glpi_sync_at: Optional[datetime] = None
+    glpi_sync_estado: Optional[str] = None  # transitorio: "publicado" | "sin_match" | "error" | "desactivado"
     empresa: Optional[EmpresaResponse] = None
     aplicacion: Optional[AplicacionResponse] = None
     categoria: Optional[CategoriaResponse] = None
@@ -185,6 +186,29 @@ class ChangePasswordRequest(BaseModel):
     username: str
     old_password: str
     new_password: str
+
+
+# --- CONFIGURACIÓN GLPI ---
+class ConfiguracionGLPIUpdate(BaseModel):
+    base_url: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    profile_id: Optional[str] = None
+    activo: Optional[bool] = None
+
+
+class ConfiguracionGLPIResponse(BaseModel):
+    base_url: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None  # enmascarado
+    username: Optional[str] = None
+    password: Optional[str] = None  # enmascarado
+    profile_id: Optional[str] = None
+    activo: bool = False
+    origen: Optional[str] = None  # "bd" (panel de ajustes) | "env" (variables de entorno)
+    configurado: bool = False
 
 
 # --- AI ENDPOINTS SCHEMAS ---
