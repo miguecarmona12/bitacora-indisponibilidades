@@ -28,6 +28,7 @@ import urllib.request
 from urllib.error import HTTPError, URLError
 import google.generativeai as genai
 import asyncio
+import glpi_service
 
 logger.remove()
 logger.add(sys.stdout, level="INFO", colorize=True)
@@ -110,6 +111,12 @@ except Exception:
 try:
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE incidentes ADD COLUMN accion_correctiva TEXT"))
+except Exception:
+    pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE incidentes ADD COLUMN glpi_sync_at TIMESTAMP"))
 except Exception:
     pass
 
@@ -305,6 +312,49 @@ def crear_notificaciones(db: Session, tipo: str, titulo: str, mensaje: str = Non
         n = models.Notificacion(usuario_id=admin.id, tipo=tipo, titulo=titulo, mensaje=mensaje)
         db.add(n)
     db.flush()
+
+# ==============================
+# SINCRONIZACIÓN GLPI
+# ==============================
+CAMPOS_DOCUMENTACION_GLPI = ("causa_raiz", "solucion", "accion_correctiva")
+
+def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valores_anteriores: dict = None, usuario_actual=None):
+    """Publica la documentación del incidente como comentario (followup) en el ticket GLPI.
+
+    Se dispara cuando el incidente tiene ticket GLPI y al menos uno de los campos
+    de documentación (Causa Raíz, Solución Aplicada o Acción Correctiva) con contenido.
+    Nunca lanza excepciones: devuelve (exitoso, detalle).
+    En updates solo reenvía si alguno de esos campos o el ticket cambiaron,
+    o si el incidente aún no se ha sincronizado (reintento).
+    """
+    if not glpi_service.glpi_configurado():
+        return False, "Integración GLPI no configurada"
+    if not (incidente.ticket or "").strip():
+        return False, "Incidente sin ticket GLPI"
+    if not any((getattr(incidente, campo) or "").strip() for campo in CAMPOS_DOCUMENTACION_GLPI):
+        return False, "Incidente sin documentación (causa raíz, solución o acción correctiva)"
+
+    if valores_anteriores is not None:
+        doc_cambio = any(
+            (valores_anteriores.get(campo) or "") != (getattr(incidente, campo) or "")
+            for campo in CAMPOS_DOCUMENTACION_GLPI
+        )
+        ticket_cambio = (valores_anteriores.get("ticket") or "") != (incidente.ticket or "")
+        ya_sincronizado = incidente.glpi_sync_at is not None
+        if not (doc_cambio or ticket_cambio or not ya_sincronizado):
+            return True, "Sin cambios que sincronizar"
+
+    try:
+        contenido = glpi_service.construir_contenido_followup(incidente, usuario_actual)
+        glpi_service.crear_followup(incidente.ticket, contenido)
+        incidente.glpi_sync_at = datetime.now()
+        db.commit()
+        db.refresh(incidente)
+        logger.info(f"GLPI: documentación comentada en el ticket '{incidente.ticket}' (incidente #{incidente.id})")
+        return True, "Comentario publicado en GLPI"
+    except Exception as e:
+        logger.warning(f"GLPI: falló la sincronización del incidente #{incidente.id}: {e}")
+        return False, str(e)
 
 @app.on_event("startup")
 async def startup_event():
@@ -821,6 +871,7 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
     db.refresh(nuevo)
     emit_event({"type": "incidente_creado", "id": nuevo.id, "usuario": current_user.username})
     enviar_notificacion_incidente(nuevo, db)
+    intentar_sincronizacion_glpi(db, nuevo, usuario_actual=current_user)
     return nuevo
 
 @app.post("/incidentes/bulk", response_model=List[schemas.IncidenteResponse])
@@ -864,6 +915,7 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
     db.commit()
     db.refresh(incidente)
     emit_event({"type": "incidente_actualizado", "id": incidente.id, "usuario": current_user.username})
+    intentar_sincronizacion_glpi(db, incidente, valores_anteriores=antes, usuario_actual=current_user)
     return incidente
 
 @app.delete("/incidentes/{incidente_id}")

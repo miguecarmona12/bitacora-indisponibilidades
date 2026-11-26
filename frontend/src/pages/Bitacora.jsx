@@ -133,6 +133,26 @@ const STYLES = `
     display: inline-flex; align-items: center; gap: 3px;
   }
 
+  .bita-glpi-ok {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    background: linear-gradient(135deg, #dcfce7, #d1fae5);
+    color: #15803d;
+    border: 1px solid rgba(21,128,61,0.18);
+    padding: 2px 7px; border-radius: 6px;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+
+  .bita-glpi-pending {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #b45309;
+    border: 1px solid rgba(180,83,9,0.18);
+    padding: 2px 7px; border-radius: 6px;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+
   .bita-duration {
     background: linear-gradient(135deg, #fef2f2, #fce7f3);
     color: #b91c1c;
@@ -359,7 +379,14 @@ const Bitacora = () => {
           }))
         )
       );
-      await bitacoraService.createIncidentesBulk(payloads);
+      const creados = await bitacoraService.createIncidentesBulk(payloads);
+      const conGlpi = (creados || []).filter(i => i.ticket && (i.causa_raiz || i.solucion || i.accion_correctiva));
+      if (conGlpi.length > 0) {
+        const ok = conGlpi.filter(i => i.glpi_sync_at).length;
+        if (ok === conGlpi.length) toast.success('Documentación publicada como comentario en el ticket GLPI.');
+        else if (ok > 0) toast.warning(`GLPI: ${ok} de ${conGlpi.length} comentarios publicados.`);
+        else toast.warning('No se pudo comentar en GLPI. Vuelve a guardar para reintentar.');
+      }
       setSuccessFlash(true);
       setTimeout(() => setSuccessFlash(false), 2400);
       setFormData(f => ({ ...f, duracion_minutos: '', motivo: '', solucion: '', ticket: '', causa_raiz: '', accion_correctiva: '', estado: 'abierto' }));
@@ -374,7 +401,7 @@ const Bitacora = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      await bitacoraService.updateIncidente(editingIncidente.id, {
+      const resp = await bitacoraService.updateIncidente(editingIncidente.id, {
         empresa_id:       editFormData.empresa_id    ? parseInt(editFormData.empresa_id)    : null,
         aplicacion_id:    editFormData.aplicacion_id ? parseInt(editFormData.aplicacion_id) : null,
         categoria_id:     editFormData.categoria_id  ? parseInt(editFormData.categoria_id)  : null,
@@ -387,6 +414,10 @@ const Bitacora = () => {
         origen_afectacion: editFormData.origen_afectacion,
         causa_raiz: editFormData.causa_raiz, accion_correctiva: editFormData.accion_correctiva, estado: editFormData.estado,
       });
+      if (resp?.ticket && (resp.causa_raiz || resp.solucion || resp.accion_correctiva)) {
+        if (resp.glpi_sync_at) toast.success(`Documentación publicada como comentario en el ticket GLPI ${resp.ticket}.`);
+        else toast.warning(`No se pudo comentar en GLPI ${resp.ticket}. Vuelve a guardar para reintentar.`);
+      }
       setEditingIncidente(null);
       fetchData();
     } catch { toast.error('Error al actualizar.'); }
@@ -741,6 +772,11 @@ const Bitacora = () => {
                     className="bita-input bita-mono w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
                     value={formData.ticket}
                     onChange={e => setFormData(f => ({ ...f, ticket: e.target.value }))} />
+                  {formData.ticket && (formData.causa_raiz || formData.solucion || formData.accion_correctiva) && (
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                      <CheckCircle2 size={11} /> Al guardar, la documentación se comentará en el ticket GLPI.
+                    </p>
+                  )}
                 </div>
 
                 {/* Tipo de Afectación */}
@@ -968,8 +1004,17 @@ const Bitacora = () => {
                                   </p>
                                 )}
                                 {inc.ticket && (
-                                  <div className="mt-1.5">
+                                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
                                     <span className="bita-ticket"><Hash size={9} />{inc.ticket}</span>
+                                    {inc.glpi_sync_at ? (
+                                      <span className="bita-glpi-ok" title={`Documentación comentada en GLPI: ${new Date(inc.glpi_sync_at).toLocaleString('es-ES')}`}>
+                                        <CheckCircle2 size={9} />GLPI
+                                      </span>
+                                    ) : ((inc.causa_raiz || inc.solucion || inc.accion_correctiva) ? (
+                                      <span className="bita-glpi-pending" title="Documentación pendiente de publicar en GLPI (se reintenta al guardar)">
+                                        <AlertCircle size={9} />GLPI
+                                      </span>
+                                    ) : null)}
                                   </div>
                                 )}
                               </td>
@@ -1199,6 +1244,11 @@ const Bitacora = () => {
                     className="bita-input bita-mono w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
                     value={editFormData.ticket}
                     onChange={e => setEditFormData(f => ({ ...f, ticket: e.target.value }))} />
+                  {editFormData.ticket && (editFormData.causa_raiz || editFormData.solucion || editFormData.accion_correctiva) && (
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                      <CheckCircle2 size={11} /> Al guardar, la documentación se comentará en el ticket GLPI.
+                    </p>
+                  )}
                 </div>
 
                 <div>

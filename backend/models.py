@@ -85,6 +85,7 @@ class Incidente(Base):
     causa_raiz = Column(Text, nullable=True)
     accion_correctiva = Column(Text, nullable=True)
     estado = Column(String(20), default="abierto")
+    glpi_sync_at = Column(DateTime, nullable=True) # Última vez que la acción correctiva se comentó en el ticket GLPI
     
     empresa = relationship("Empresa", back_populates="incidentes")
     aplicacion = relationship("Aplicacion", back_populates="incidentes")

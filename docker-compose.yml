@@ -46,6 +46,12 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@bitacora.local}
+      GLPI_BASE_URL: ${GLPI_BASE_URL}
+      GLPI_CLIENT_ID: ${GLPI_CLIENT_ID}
+      GLPI_CLIENT_SECRET: ${GLPI_CLIENT_SECRET}
+      GLPI_USERNAME: ${GLPI_USERNAME}
+      GLPI_PASSWORD: ${GLPI_PASSWORD}
+      GLPI_PROFILE_ID: ${GLPI_PROFILE_ID}
     volumes:
       - ./backend:/app
     networks:

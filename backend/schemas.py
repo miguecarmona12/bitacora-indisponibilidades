@@ -158,6 +158,7 @@ class IncidenteCreate(IncidenteBase):
 class IncidenteResponse(IncidenteBase):
     id: int
     usuario_id: int | None = None
+    glpi_sync_at: Optional[datetime] = None
     empresa: Optional[EmpresaResponse] = None
     aplicacion: Optional[AplicacionResponse] = None
     categoria: Optional[CategoriaResponse] = None
