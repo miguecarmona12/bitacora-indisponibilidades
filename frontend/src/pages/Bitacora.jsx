@@ -230,6 +230,8 @@ const Bitacora = () => {
   const [currentPage,      setCurrentPage]      = useState(1);
   const [editingIncidente, setEditingIncidente]  = useState(null);
   const [editFormData,     setEditFormData]      = useState({});
+  const [cerrarGlpi,       setCerrarGlpi]        = useState(true);
+  const [editCerrarGlpi,   setEditCerrarGlpi]    = useState(true);
   const [submitting,       setSubmitting]        = useState(false);
   const [loading,          setLoading]           = useState(true);
   const [error,            setError]             = useState(null);
@@ -376,6 +378,7 @@ const Bitacora = () => {
             tipo_afectacion: formData.tipo_afectacion,
             origen_afectacion: formData.origen_afectacion,
             causa_raiz: formData.causa_raiz, accion_correctiva: formData.accion_correctiva, estado: formData.estado,
+            cerrar_glpi: cerrarGlpi,
           }))
         )
       );
@@ -384,7 +387,8 @@ const Bitacora = () => {
       const errores = (creados || []).filter(i => i.glpi_sync_estado === 'error').length;
       const sinMatch = (creados || []).filter(i => i.glpi_sync_estado === 'sin_match').length;
       if (errores > 0) toast.warning('Falla guardada, pero GLPI no respondió. Edita y guarda de nuevo para reintentar.');
-      else if (publicados > 0) toast.success('Falla guardada y caso GLPI cerrado con la solución.');
+      else if (publicados > 0 && cerrarGlpi) toast.success('Falla guardada y caso GLPI cerrado con la solución.');
+      else if (publicados > 0) toast.success('Falla guardada. Documentación publicada como comentario en GLPI.');
       else if (sinMatch > 0) toast.info('Falla guardada. El ticket no se encontró en GLPI.');
       setSuccessFlash(true);
       setTimeout(() => setSuccessFlash(false), 2400);
@@ -412,9 +416,10 @@ const Bitacora = () => {
         tipo_afectacion: editFormData.tipo_afectacion,
         origen_afectacion: editFormData.origen_afectacion,
         causa_raiz: editFormData.causa_raiz, accion_correctiva: editFormData.accion_correctiva, estado: editFormData.estado,
+        cerrar_glpi: editCerrarGlpi,
       });
       if (resp?.glpi_sync_estado === 'publicado') toast.success(`Falla guardada y caso GLPI ${resp.ticket} cerrado con la solución.`);
-      else if (resp?.glpi_sync_estado === 'publicado_comentario') toast.info(`Falla guardada. El caso ${resp.ticket} ya estaba cerrado; la documentación quedó como comentario.`);
+      else if (resp?.glpi_sync_estado === 'publicado_comentario') toast.info(`Falla guardada. Documentación publicada como comentario en el caso GLPI ${resp.ticket}.`);
       else if (resp?.glpi_sync_estado === 'error') toast.warning('Falla guardada, pero GLPI no respondió. Guarda de nuevo para reintentar.');
       else if (resp?.glpi_sync_estado === 'sin_match') toast.info(`Falla guardada. El ticket ${resp.ticket} no se encontró en GLPI.`);
       setEditingIncidente(null);
@@ -772,9 +777,17 @@ const Bitacora = () => {
                     value={formData.ticket}
                     onChange={e => setFormData(f => ({ ...f, ticket: e.target.value }))} />
                   {formData.ticket && (formData.causa_raiz || formData.solucion || formData.accion_correctiva) && (
-                    <p className="text-[10px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-                      <CheckCircle2 size={11} /> Al guardar, la documentación se comentará en el ticket GLPI.
-                    </p>
+                    <label className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-1 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={cerrarGlpi}
+                        onChange={e => setCerrarGlpi(e.target.checked)}
+                        className="accent-emerald-600 w-3 h-3 cursor-pointer"
+                      />
+                      {cerrarGlpi
+                        ? <><CheckCircle2 size={11} /> Al guardar, el caso GLPI se cerrará publicando la documentación como solución.</>
+                        : <><CheckCircle2 size={11} /> Al guardar, la documentación se publicará solo como comentario en el ticket GLPI.</>}
+                    </label>
                   )}
                 </div>
 
@@ -1090,6 +1103,7 @@ const Bitacora = () => {
                                     <button
                                       onClick={() => {
                                         setEditingIncidente(inc);
+                                        setEditCerrarGlpi(true);
                                         setEditFormData({
                                           empresa_id: inc.empresa_id || '', aplicacion_id: inc.aplicacion_id || '',
                                           categoria_id: inc.categoria_id || '', producto_id: inc.producto_id || '',
@@ -1244,9 +1258,17 @@ const Bitacora = () => {
                     value={editFormData.ticket}
                     onChange={e => setEditFormData(f => ({ ...f, ticket: e.target.value }))} />
                   {editFormData.ticket && (editFormData.causa_raiz || editFormData.solucion || editFormData.accion_correctiva) && (
-                    <p className="text-[10px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-                      <CheckCircle2 size={11} /> Al guardar, la documentación se comentará en el ticket GLPI.
-                    </p>
+                    <label className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-semibold mt-1 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={editCerrarGlpi}
+                        onChange={e => setEditCerrarGlpi(e.target.checked)}
+                        className="accent-emerald-600 w-3 h-3 cursor-pointer"
+                      />
+                      {editCerrarGlpi
+                        ? <><CheckCircle2 size={11} /> Al guardar, el caso GLPI se cerrará publicando la documentación como solución.</>
+                        : <><CheckCircle2 size={11} /> Al guardar, la documentación se publicará solo como comentario en el ticket GLPI.</>}
+                    </label>
                   )}
                 </div>
 

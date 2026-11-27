@@ -117,6 +117,7 @@ class IncidenteUpdate(BaseModel):
     causa_raiz: Optional[str] = None
     accion_correctiva: Optional[str] = None
     estado: Optional[str] = None
+    cerrar_glpi: Optional[bool] = None  # transitorio: True cierra el caso GLPI, False solo comenta
 
 
 class UsuarioBase(BaseModel):
@@ -152,7 +153,7 @@ class TokenData(BaseModel):
 
 
 class IncidenteCreate(IncidenteBase):
-    pass
+    cerrar_glpi: Optional[bool] = None  # transitorio: True cierra el caso GLPI, False solo comenta
 
 
 class IncidenteResponse(IncidenteBase):

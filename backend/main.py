@@ -436,18 +436,21 @@ def obtener_config_glpi(db: Session):
 # ==============================
 CAMPOS_DOCUMENTACION_GLPI = ("causa_raiz", "solucion", "accion_correctiva")
 
-def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valores_anteriores: dict = None):
+def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valores_anteriores: dict = None, cerrar: bool = True):
     """Publica la documentación del incidente en el ticket GLPI y cierra el caso.
 
     Se dispara cuando el incidente tiene ticket GLPI y al menos uno de los campos
     de documentación (Causa Raíz, Solución Aplicada o Acción Correctiva) con contenido.
     Nunca lanza excepciones ni impide el guardado: devuelve (estado, detalle).
 
+    Con cerrar=False solo publica la documentación como comentario (followup),
+    sin cerrar el caso en GLPI.
+
     Estados:
       - "desactivado": GLPI no configurado, sin ticket o sin documentación (no aplica)
       - "publicado":   solución publicada y caso cerrado en GLPI
-      - "publicado_comentario": el caso ya estaba cerrado; la documentación
-                      quedó registrada como comentario
+      - "publicado_comentario": la documentación quedó registrada como comentario
+                      (por elección del usuario o porque el caso ya estaba cerrado)
       - "sin_match":   el ticket no existe en GLPI (se guarda igual)
       - "error":       GLPI configurado pero falló el envío (reintento al guardar de nuevo)
 
@@ -485,6 +488,12 @@ def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valor
 
     try:
         group_id = get_config_valor(db, "GLPI_GROUP_ID")
+        if not cerrar:
+            glpi_service.crear_followup(config, incidente.ticket, contenido)
+            _marcar_sincronizado()
+            detalle = "Documentación publicada como comentario en GLPI"
+            logger.info(f"GLPI: {detalle} (ticket '{incidente.ticket}', incidente #{incidente.id})")
+            return "publicado_comentario", detalle
         estado, detalle = glpi_service.cerrar_caso_con_solucion(config, incidente.ticket, contenido, group_id=group_id)
         _marcar_sincronizado()
         logger.info(f"GLPI: {detalle} (ticket '{incidente.ticket}', incidente #{incidente.id})")
@@ -1102,7 +1111,7 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="La fecha de inicio no puede ser futura")
     if incidente.fecha_fin and incidente.fecha_fin < incidente.fecha_inicio:
         raise HTTPException(status_code=400, detail="La fecha de fin no puede ser anterior a la de inicio")
-    nuevo = models.Incidente(**incidente.dict())
+    nuevo = models.Incidente(**incidente.dict(exclude={"cerrar_glpi"}))
     nuevo.usuario_id = current_user.id
     db.add(nuevo)
     db.flush()
@@ -1111,7 +1120,7 @@ def create_incidente(incidente: schemas.IncidenteCreate, db: Session = Depends(g
     db.refresh(nuevo)
     emit_event({"type": "incidente_creado", "id": nuevo.id, "usuario": current_user.username})
     enviar_notificacion_incidente(nuevo, db)
-    estado, _ = intentar_sincronizacion_glpi(db, nuevo)
+    estado, _ = intentar_sincronizacion_glpi(db, nuevo, cerrar=incidente.cerrar_glpi is not False)
     nuevo.glpi_sync_estado = estado
     return nuevo
 
@@ -1123,19 +1132,19 @@ def create_incidentes_bulk(incidentes: List[schemas.IncidenteCreate], db: Sessio
                 raise HTTPException(status_code=403, detail="No autorizado para registrar incidentes en otra empresa")
     nuevos = []
     for i in incidentes:
-        n = models.Incidente(**i.dict())
+        n = models.Incidente(**i.dict(exclude={"cerrar_glpi"}))
         n.usuario_id = current_user.id
         db.add(n)
         db.flush()
         crear_notificaciones(db, "incidente_creado", f"Incidente #{n.id}", f"{current_user.username} creó un incidente")
-        nuevos.append(n)
+        nuevos.append((n, i.cerrar_glpi is not False))
     db.commit()
-    for n in nuevos:
+    for n, cerrar in nuevos:
         db.refresh(n)
         emit_event({"type": "incidente_creado", "id": n.id, "usuario": current_user.username})
-        estado, _ = intentar_sincronizacion_glpi(db, n)
+        estado, _ = intentar_sincronizacion_glpi(db, n, cerrar=cerrar)
         n.glpi_sync_estado = estado
-    return nuevos
+    return [n for n, _ in nuevos]
 
 @app.put("/incidentes/{incidente_id}", response_model=schemas.IncidenteResponse)
 def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin", "tecnico"]))):
@@ -1152,13 +1161,14 @@ def update_incidente(incidente_id: int, datos: schemas.IncidenteUpdate, db: Sess
     if datos.fecha_fin and datos.fecha_inicio and datos.fecha_fin < datos.fecha_inicio:
         raise HTTPException(status_code=400, detail="La fecha de fin no puede ser anterior a la de inicio")
     antes = {c.name: getattr(incidente, c.name) for c in incidente.__table__.columns}
-    for field, value in datos.dict(exclude_unset=True).items():
+    for field, value in datos.dict(exclude_unset=True, exclude={"cerrar_glpi"}).items():
         setattr(incidente, field, value)
+    cerrar = datos.cerrar_glpi is not False
     crear_notificaciones(db, "incidente_actualizado", f"Incidente #{incidente.id}", f"{current_user.username} actualizó el incidente")
     db.commit()
     db.refresh(incidente)
     emit_event({"type": "incidente_actualizado", "id": incidente.id, "usuario": current_user.username})
-    estado, _ = intentar_sincronizacion_glpi(db, incidente, valores_anteriores=antes)
+    estado, _ = intentar_sincronizacion_glpi(db, incidente, valores_anteriores=antes, cerrar=cerrar)
     incidente.glpi_sync_estado = estado
     return incidente
 
