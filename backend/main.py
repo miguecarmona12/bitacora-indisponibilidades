@@ -381,6 +381,8 @@ CATALOGO_CONFIG = [
      "descripcion": "Contraseña del usuario técnico", "tipo": "password", "secreto": True},
     {"clave": "GLPI_PROFILE_ID", "categoria": "glpi", "label": "Perfil GLPI",
      "descripcion": "ID del perfil con permisos de seguimientos (ej: 12)", "tipo": "text", "secreto": False},
+    {"clave": "GLPI_GROUP_ID", "categoria": "glpi", "label": "Grupo de técnicos (ID)",
+     "descripcion": "Se asigna al caso antes de cerrarlo si GLPI exige grupo (opcional). En GLPI: Administración > Grupos", "tipo": "text", "secreto": False},
     {"clave": "GLPI_ACTIVO", "categoria": "glpi", "label": "Integración activa",
      "descripcion": "Pausa o reactiva los comentarios en tickets GLPI", "tipo": "boolean", "secreto": False},
     # --- Email / SMTP ---
@@ -435,7 +437,7 @@ def obtener_config_glpi(db: Session):
 CAMPOS_DOCUMENTACION_GLPI = ("causa_raiz", "solucion", "accion_correctiva")
 
 def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valores_anteriores: dict = None):
-    """Publica la documentación del incidente como comentario (followup) en el ticket GLPI.
+    """Publica la documentación del incidente en el ticket GLPI y cierra el caso.
 
     Se dispara cuando el incidente tiene ticket GLPI y al menos uno de los campos
     de documentación (Causa Raíz, Solución Aplicada o Acción Correctiva) con contenido.
@@ -443,8 +445,10 @@ def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valor
 
     Estados:
       - "desactivado": GLPI no configurado, sin ticket o sin documentación (no aplica)
-      - "publicado":   comentario publicado en GLPI
-      - "sin_match":   el ticket no existe en GLPI (se guarda igual, sin comentario)
+      - "publicado":   solución publicada y caso cerrado en GLPI
+      - "publicado_comentario": el caso ya estaba cerrado; la documentación
+                      quedó registrada como comentario
+      - "sin_match":   el ticket no existe en GLPI (se guarda igual)
       - "error":       GLPI configurado pero falló el envío (reintento al guardar de nuevo)
 
     En updates solo reenvía si alguno de esos campos o el ticket cambiaron,
@@ -468,14 +472,23 @@ def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valor
         if not (doc_cambio or ticket_cambio or not ya_sincronizado):
             return "publicado", "Sin cambios que sincronizar"
 
-    try:
-        contenido = glpi_service.construir_contenido_followup(incidente)
-        glpi_service.crear_followup(config, incidente.ticket, contenido)
+    def _marcar_sincronizado():
         incidente.glpi_sync_at = datetime.now()
         db.commit()
         db.refresh(incidente)
-        logger.info(f"GLPI: documentación comentada en el ticket '{incidente.ticket}' (incidente #{incidente.id})")
-        return "publicado", "Comentario publicado en GLPI"
+
+    try:
+        contenido = glpi_service.construir_contenido_followup(incidente)
+    except Exception as e:
+        logger.warning(f"GLPI: falló la sincronización del incidente #{incidente.id}: {e}")
+        return "error", str(e)
+
+    try:
+        group_id = get_config_valor(db, "GLPI_GROUP_ID")
+        estado, detalle = glpi_service.cerrar_caso_con_solucion(config, incidente.ticket, contenido, group_id=group_id)
+        _marcar_sincronizado()
+        logger.info(f"GLPI: {detalle} (ticket '{incidente.ticket}', incidente #{incidente.id})")
+        return estado, detalle
     except glpi_service.GlpiError as e:
         if e.codigo_http == 404:
             logger.info(f"GLPI: el ticket '{incidente.ticket}' no existe (incidente #{incidente.id}); se guarda sin comentario")

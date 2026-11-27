@@ -380,12 +380,12 @@ const Bitacora = () => {
         )
       );
       const creados = await bitacoraService.createIncidentesBulk(payloads);
-      const publicados = (creados || []).filter(i => i.glpi_sync_estado === 'publicado').length;
+      const publicados = (creados || []).filter(i => i.glpi_sync_estado === 'publicado' || i.glpi_sync_estado === 'publicado_comentario').length;
       const errores = (creados || []).filter(i => i.glpi_sync_estado === 'error').length;
       const sinMatch = (creados || []).filter(i => i.glpi_sync_estado === 'sin_match').length;
-      if (errores > 0) toast.warning('Falla guardada, pero GLPI no respondió. Edita y guarda de nuevo para reintentar el comentario.');
-      else if (publicados > 0) toast.success('Falla guardada y documentación comentada en el ticket GLPI.');
-      else if (sinMatch > 0) toast.info('Falla guardada. El ticket no se encontró en GLPI (sin comentario).');
+      if (errores > 0) toast.warning('Falla guardada, pero GLPI no respondió. Edita y guarda de nuevo para reintentar.');
+      else if (publicados > 0) toast.success('Falla guardada y caso GLPI cerrado con la solución.');
+      else if (sinMatch > 0) toast.info('Falla guardada. El ticket no se encontró en GLPI.');
       setSuccessFlash(true);
       setTimeout(() => setSuccessFlash(false), 2400);
       setFormData(f => ({ ...f, duracion_minutos: '', motivo: '', solucion: '', ticket: '', causa_raiz: '', accion_correctiva: '', estado: 'abierto' }));
@@ -413,8 +413,9 @@ const Bitacora = () => {
         origen_afectacion: editFormData.origen_afectacion,
         causa_raiz: editFormData.causa_raiz, accion_correctiva: editFormData.accion_correctiva, estado: editFormData.estado,
       });
-      if (resp?.glpi_sync_estado === 'publicado') toast.success(`Falla guardada y documentación comentada en el ticket GLPI ${resp.ticket}.`);
-      else if (resp?.glpi_sync_estado === 'error') toast.warning('Falla guardada, pero GLPI no respondió. Guarda de nuevo para reintentar el comentario.');
+      if (resp?.glpi_sync_estado === 'publicado') toast.success(`Falla guardada y caso GLPI ${resp.ticket} cerrado con la solución.`);
+      else if (resp?.glpi_sync_estado === 'publicado_comentario') toast.info(`Falla guardada. El caso ${resp.ticket} ya estaba cerrado; la documentación quedó como comentario.`);
+      else if (resp?.glpi_sync_estado === 'error') toast.warning('Falla guardada, pero GLPI no respondió. Guarda de nuevo para reintentar.');
       else if (resp?.glpi_sync_estado === 'sin_match') toast.info(`Falla guardada. El ticket ${resp.ticket} no se encontró en GLPI.`);
       setEditingIncidente(null);
       fetchData();

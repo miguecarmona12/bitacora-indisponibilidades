@@ -60,7 +60,7 @@ const FEATURES = [
 
 const CATEGORIAS = [
   { id: 'ia', label: 'Inteligencia Artificial', icon: Sparkles, desc: 'Proveedor y credenciales del asistente de IA' },
-  { id: 'glpi', label: 'GLPI', icon: PlugZap, desc: 'Cuando un incidente tenga ticket GLPI y documentación (Causa Raíz, Solución o Acción Correctiva), se publica automáticamente como comentario en el caso original de GLPI.' },
+  { id: 'glpi', label: 'GLPI', icon: PlugZap, desc: 'Cuando un incidente tenga ticket GLPI y documentación (Causa Raíz, Solución o Acción Correctiva), el caso se cierra en GLPI publicando la documentación como solución. Si el caso ya estaba cerrado, queda como comentario.' },
   { id: 'email', label: 'Email / SMTP', icon: Mail, desc: 'Servidor de correo para notificaciones de incidentes' },
   { id: 'general', label: 'General', icon: Settings2, desc: 'URLs y parámetros del sistema' },
 ];

@@ -213,3 +213,133 @@ def test_probar_conexion_ok(mock_token):
     ok, mensaje = glpi_service.probar_conexion(CONFIG_OK)
     assert ok
     assert "exitosa" in mensaje
+
+
+def test_crear_solucion_sin_ticket_numerico_lanza_error():
+    try:
+        glpi_service.crear_solucion(CONFIG_OK, "abc", "<p>test</p>")
+        assert False, "Debía lanzar GlpiError"
+    except glpi_service.GlpiError as e:
+        assert "ID numérico" in str(e)
+
+
+@patch.object(glpi_service, "obtener_access_token", return_value="token-falso")
+@patch.object(glpi_service, "_peticion", return_value={"id": 777, "href": "/x"})
+def test_crear_solucion_ok(mock_peticion, mock_token):
+    respuesta = glpi_service.crear_solucion(CONFIG_OK, "736774", "<p>solución</p>")
+    assert respuesta["id"] == 777
+    args, kwargs = mock_peticion.call_args
+    assert "/api.php/v2/Assistance/Ticket/736774/Timeline/Solution" in args[0]
+    assert kwargs["method"] == "POST"
+    assert kwargs["headers"]["GLPI-Profile"] == "12"
+    body = json.loads(kwargs["data"].decode("utf-8"))
+    assert body["items_id"] == 736774
+    assert body["itemtype"] == "Ticket"
+    assert body["content"] == "<p>solución</p>"
+    assert body["status"] == 3  # aceptada -> cierra el ticket
+
+
+@patch.object(glpi_service, "obtener_access_token", return_value="token-falso")
+@patch.object(glpi_service, "_peticion")
+def test_crear_solucion_reintenta_solo_en_401(mock_peticion, mock_token):
+    error_400 = glpi_service.GlpiError("GLPI respondió 400: ticket already closed", codigo_http=400)
+    mock_peticion.side_effect = [error_400]
+    try:
+        glpi_service.crear_solucion(CONFIG_OK, "736774", "<p>x</p>")
+        assert False, "Debía propagar el error 400"
+    except glpi_service.GlpiError:
+        pass
+    assert mock_peticion.call_count == 1
+
+    error_401 = glpi_service.GlpiError("GLPI respondió 401: token expirado", codigo_http=401)
+    mock_peticion.side_effect = [error_401, {"id": 1}]
+    respuesta = glpi_service.crear_solucion(CONFIG_OK, "736774", "<p>x</p>")
+    assert respuesta == {"id": 1}
+    assert mock_peticion.call_count == 3
+
+
+@patch.object(glpi_service, "obtener_access_token")
+def test_obtener_user_id_decodifica_jwt(mock_token):
+    import base64 as _b64
+    payload = _b64.urlsafe_b64encode(json.dumps({"sub": "1839"}).encode()).decode().rstrip("=")
+    mock_token.return_value = f"header.{payload}.firma"
+    assert glpi_service.obtener_user_id(CONFIG_OK) == 1839
+
+
+@patch.object(glpi_service, "obtener_access_token", return_value="token-falso")
+@patch.object(glpi_service, "_peticion", return_value={})
+def test_asignar_miembro_team(mock_peticion, mock_token):
+    glpi_service.asignar_miembro_team(CONFIG_OK, 736774, "Group", 5)
+    args, kwargs = mock_peticion.call_args
+    assert "/api.php/v2/Assistance/Ticket/736774/TeamMember" in args[0]
+    body = json.loads(kwargs["data"].decode("utf-8"))
+    assert body == {"type": "Group", "id": 5, "role": "assigned"}
+
+
+@patch.object(glpi_service, "_mover_a_cerrado")
+@patch.object(glpi_service, "crear_followup")
+@patch.object(glpi_service, "crear_solucion", return_value={"id": 1})
+def test_cerrar_caso_solucion_directa(mock_solucion, mock_followup, mock_cerrado):
+    estado, detalle = glpi_service.cerrar_caso_con_solucion(CONFIG_OK, "736774", "<p>x</p>")
+    assert estado == "publicado"
+    mock_solucion.assert_called_once()
+    mock_followup.assert_not_called()
+
+
+@patch.object(glpi_service, "_mover_a_cerrado")
+@patch.object(glpi_service, "crear_followup")
+@patch.object(glpi_service, "asignar_miembro_team")
+@patch.object(glpi_service, "obtener_user_id", return_value=1839)
+@patch.object(glpi_service, "crear_solucion")
+def test_cerrar_caso_asigna_tecnico_si_falta(mock_solucion, mock_uid, mock_team, mock_followup, mock_cerrado):
+    error = glpi_service.GlpiError("Technician assigned is mandatory before ticket is solved/closed", codigo_http=500)
+    mock_solucion.side_effect = [error, {"id": 1}]
+    estado, detalle = glpi_service.cerrar_caso_con_solucion(CONFIG_OK, "736774", "<p>x</p>")
+    assert estado == "publicado"
+    assert mock_solucion.call_count == 2
+    mock_team.assert_called_once_with(CONFIG_OK, 736774, "User", 1839)
+    mock_followup.assert_not_called()
+
+
+@patch.object(glpi_service, "_mover_a_cerrado")
+@patch.object(glpi_service, "crear_followup")
+@patch.object(glpi_service, "asignar_miembro_team")
+@patch.object(glpi_service, "obtener_user_id", return_value=1839)
+@patch.object(glpi_service, "crear_solucion")
+def test_cerrar_caso_asigna_grupo_configurado(mock_solucion, mock_uid, mock_team, mock_followup, mock_cerrado):
+    error_tec = glpi_service.GlpiError("Technician assigned is mandatory", codigo_http=500)
+    error_grupo = glpi_service.GlpiError("Group of technicians assigned is mandatory before ticket is solved/closed", codigo_http=500)
+    mock_solucion.side_effect = [error_tec, error_grupo, {"id": 1}]
+    estado, detalle = glpi_service.cerrar_caso_con_solucion(CONFIG_OK, "736774", "<p>x</p>", group_id="7")
+    assert estado == "publicado"
+    assert mock_solucion.call_count == 3
+    assert mock_team.call_count == 2  # User + Group
+    mock_team.assert_any_call(CONFIG_OK, 736774, "Group", 7)
+    mock_followup.assert_not_called()
+
+
+@patch.object(glpi_service, "_mover_a_cerrado")
+@patch.object(glpi_service, "crear_followup", return_value={"id": 2})
+@patch.object(glpi_service, "asignar_miembro_team")
+@patch.object(glpi_service, "obtener_user_id", return_value=1839)
+@patch.object(glpi_service, "crear_solucion")
+def test_cerrar_caso_sin_grupo_configurado_cae_a_comentario(mock_solucion, mock_uid, mock_team, mock_followup, mock_cerrado):
+    error_grupo = glpi_service.GlpiError("Group of technicians assigned is mandatory before ticket is solved/closed", codigo_http=500)
+    mock_solucion.side_effect = [error_grupo]
+    estado, detalle = glpi_service.cerrar_caso_con_solucion(CONFIG_OK, "736774", "<p>x</p>", group_id="")
+    assert estado == "publicado_comentario"
+    mock_team.assert_not_called()
+    mock_followup.assert_called_once()
+
+
+@patch.object(glpi_service, "crear_followup")
+@patch.object(glpi_service, "crear_solucion")
+def test_cerrar_caso_ticket_inexistente_propaga_404(mock_solucion, mock_followup):
+    error_404 = glpi_service.GlpiError("GLPI respondió 404: not found", codigo_http=404)
+    mock_solucion.side_effect = error_404
+    try:
+        glpi_service.cerrar_caso_con_solucion(CONFIG_OK, "736774", "<p>x</p>")
+        assert False, "Debía propagar el 404"
+    except glpi_service.GlpiError as e:
+        assert e.codigo_http == 404
+    mock_followup.assert_not_called()
