@@ -133,15 +133,11 @@ class Notificacion(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
     usuario = relationship("Usuario")
 
-class ConfiguracionGLPI(Base):
-    __tablename__ = "configuracion_glpi"
+class Configuracion(Base):
+    __tablename__ = "configuracion"
 
-    id = Column(Integer, primary_key=True, index=True)
-    base_url = Column(String(255), nullable=False)
-    client_id = Column(String(255), nullable=False)
-    client_secret = Column(String(500), nullable=False)
-    username = Column(String(100), nullable=False)
-    password = Column(String(255), nullable=False)
-    profile_id = Column(String(20), nullable=True)
-    activo = Column(Boolean, default=True)
+    clave = Column(String(100), primary_key=True, index=True)
+    valor = Column(Text, nullable=True)
+    actualizado_en = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    actualizado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
 

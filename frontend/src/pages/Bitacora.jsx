@@ -418,14 +418,14 @@ const Bitacora = () => {
       else if (resp?.glpi_sync_estado === 'sin_match') toast.info(`Falla guardada. El ticket ${resp.ticket} no se encontró en GLPI.`);
       setEditingIncidente(null);
       fetchData();
-    } catch { toast.error('Error al actualizar.'); }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al actualizar.'); }
   };
 
   /* ── Delete ────────────────────────────────────────────────────────────── */
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar este incidente? Esta acción no se puede deshacer.')) return;
     try { await bitacoraService.deleteIncidente(id); fetchData(); }
-    catch { toast.error('Error al eliminar.'); }
+    catch (err) { toast.error(err.response?.data?.detail || 'Error al eliminar.'); }
   };
 
   /* ── Helpers ───────────────────────────────────────────────────────────── */
@@ -1370,7 +1370,7 @@ const Bitacora = () => {
                             await bitacoraService.eliminarAdjunto(adj.id);
                             setAdjuntos(prev => prev.filter(a => a.id !== adj.id));
                             toast.success('Archivo eliminado');
-                          } catch { toast.error('Error al eliminar'); }
+                          } catch (err) { toast.error(err.response?.data?.detail || 'Error al eliminar'); }
                         }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2 }}>
                           <X size={12} />
                         </button>

@@ -123,17 +123,38 @@ except Exception:
 try:
     with engine.begin() as conn:
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS configuracion_glpi (
-                id SERIAL PRIMARY KEY,
-                base_url VARCHAR(255) NOT NULL,
-                client_id VARCHAR(255) NOT NULL,
-                client_secret VARCHAR(500) NOT NULL,
-                username VARCHAR(100) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                profile_id VARCHAR(20),
-                activo BOOLEAN DEFAULT TRUE
+            CREATE TABLE IF NOT EXISTS configuracion (
+                clave VARCHAR(100) PRIMARY KEY,
+                valor TEXT,
+                actualizado_en TIMESTAMP,
+                actualizado_por INTEGER
             )
         """))
+except Exception:
+    pass
+
+# Migración: si existía la tabla configuracion_glpi (panel anterior), pasar sus datos a claves GLPI_*
+try:
+    with engine.begin() as conn:
+        try:
+            filas = conn.execute(text(
+                "SELECT base_url, client_id, client_secret, username, password, profile_id, activo FROM configuracion_glpi LIMIT 1"
+            )).fetchone()
+        except Exception:
+            filas = None  # la tabla no existe: nada que migrar
+        if filas:
+            mapeo = {
+                "GLPI_BASE_URL": filas[0], "GLPI_CLIENT_ID": filas[1], "GLPI_CLIENT_SECRET": filas[2],
+                "GLPI_USERNAME": filas[3], "GLPI_PASSWORD": filas[4], "GLPI_PROFILE_ID": filas[5],
+                "GLPI_ACTIVO": "true" if filas[6] else "false",
+            }
+            for clave, valor in mapeo.items():
+                if valor is None:
+                    continue
+                conn.execute(text(
+                    "INSERT INTO configuracion (clave, valor) VALUES (:clave, :valor) ON CONFLICT (clave) DO NOTHING"
+                ), {"clave": clave, "valor": str(valor)})
+        conn.execute(text("DROP TABLE IF EXISTS configuracion_glpi"))
 except Exception:
     pass
 
@@ -231,11 +252,15 @@ def create_default_admin():
         db.close()
 
 
-def get_ai_settings():
-    provider = os.getenv("AI_PROVIDER", "gemini").strip().lower()
-    api_key = os.getenv("AI_API_KEY") or os.getenv("GEMINI_API_KEY")
-    base_url = os.getenv("AI_BASE_URL")
-    model = os.getenv("AI_MODEL")
+def get_ai_settings(db: Session = None):
+    def valor(clave: str, default: str = "") -> str:
+        if db is not None:
+            return get_config_valor(db, clave, default)
+        return os.getenv(clave, default)
+    provider = valor("AI_PROVIDER", "gemini").strip().lower()
+    api_key = valor("AI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    base_url = valor("AI_BASE_URL")
+    model = valor("AI_MODEL")
     return provider, api_key, base_url, model
 
 
@@ -263,8 +288,8 @@ def openai_request(path: str, body: dict, api_key: str, base_url: str):
         raise RuntimeError(f"OpenAI request failed: {e.reason}")
 
 
-def ensure_ai_config():
-    provider, api_key, base_url, model = get_ai_settings()
+def ensure_ai_config(db: Session = None):
+    provider, api_key, base_url, model = get_ai_settings(db)
     if provider == "gemini":
         if not api_key:
             raise HTTPException(status_code=500, detail="GEMINI_API_KEY no configurado en el backend")
@@ -331,9 +356,49 @@ def crear_notificaciones(db: Session, tipo: str, titulo: str, mensaje: str = Non
     db.flush()
 
 # ==============================
-# SINCRONIZACIÓN GLPI
+# CONFIGURACIÓN (panel de ajustes)
 # ==============================
-CAMPOS_DOCUMENTACION_GLPI = ("causa_raiz", "solucion", "accion_correctiva")
+CATALOGO_CONFIG = [
+    # --- Inteligencia Artificial ---
+    {"clave": "AI_PROVIDER", "categoria": "ia", "label": "Proveedor IA",
+     "descripcion": "gemini, openai, modelarts u openai-compatible", "tipo": "text", "secreto": False},
+    {"clave": "AI_API_KEY", "categoria": "ia", "label": "API Key de IA",
+     "descripcion": "Clave de acceso al proveedor de IA", "tipo": "password", "secreto": True},
+    {"clave": "AI_BASE_URL", "categoria": "ia", "label": "Base URL de IA",
+     "descripcion": "Endpoint OpenAI-compatible (ej: https://api.modelarts-maas.com/openai/v1)", "tipo": "text", "secreto": False},
+    {"clave": "AI_MODEL", "categoria": "ia", "label": "Modelo de IA",
+     "descripcion": "Identificador del modelo (ej: deepseek-v3.2)", "tipo": "text", "secreto": False},
+    # --- GLPI ---
+    {"clave": "GLPI_BASE_URL", "categoria": "glpi", "label": "URL de GLPI",
+     "descripcion": "URL base de la instancia de GLPI", "tipo": "text", "secreto": False},
+    {"clave": "GLPI_CLIENT_ID", "categoria": "glpi", "label": "Client ID (OAuth2)",
+     "descripcion": "ID de cliente OAuth2 registrado en GLPI", "tipo": "password", "secreto": True},
+    {"clave": "GLPI_CLIENT_SECRET", "categoria": "glpi", "label": "Client Secret (OAuth2)",
+     "descripcion": "Secreto de cliente OAuth2 registrado en GLPI", "tipo": "password", "secreto": True},
+    {"clave": "GLPI_USERNAME", "categoria": "glpi", "label": "Usuario de GLPI",
+     "descripcion": "Usuario técnico con permisos de seguimientos", "tipo": "text", "secreto": False},
+    {"clave": "GLPI_PASSWORD", "categoria": "glpi", "label": "Contraseña de GLPI",
+     "descripcion": "Contraseña del usuario técnico", "tipo": "password", "secreto": True},
+    {"clave": "GLPI_PROFILE_ID", "categoria": "glpi", "label": "Perfil GLPI",
+     "descripcion": "ID del perfil con permisos de seguimientos (ej: 12)", "tipo": "text", "secreto": False},
+    {"clave": "GLPI_ACTIVO", "categoria": "glpi", "label": "Integración activa",
+     "descripcion": "Pausa o reactiva los comentarios en tickets GLPI", "tipo": "boolean", "secreto": False},
+    # --- Email / SMTP ---
+    {"clave": "SMTP_HOST", "categoria": "email", "label": "Servidor SMTP",
+     "descripcion": "Host del servidor de correo", "tipo": "text", "secreto": False},
+    {"clave": "SMTP_PORT", "categoria": "email", "label": "Puerto SMTP",
+     "descripcion": "Puerto del servidor (ej: 587)", "tipo": "number", "secreto": False},
+    {"clave": "SMTP_USER", "categoria": "email", "label": "Usuario SMTP",
+     "descripcion": "Usuario para autenticación (opcional)", "tipo": "text", "secreto": False},
+    {"clave": "SMTP_PASS", "categoria": "email", "label": "Contraseña SMTP",
+     "descripcion": "Contraseña para autenticación", "tipo": "password", "secreto": True},
+    {"clave": "EMAIL_FROM", "categoria": "email", "label": "Remitente",
+     "descripcion": "Correo que aparece como remitente", "tipo": "text", "secreto": False},
+    # --- General ---
+    {"clave": "FRONTEND_URL", "categoria": "general", "label": "URL del frontend",
+     "descripcion": "Origen del frontend para CORS y enlaces en correos (requiere reinicio del backend)", "tipo": "text", "secreto": False},
+]
+CLAVES_CONFIG = {item["clave"]: item for item in CATALOGO_CONFIG}
 
 def _enmascarar(valor: str) -> str:
     """Enmascara un secreto dejando ver solo los últimos 4 caracteres."""
@@ -341,33 +406,33 @@ def _enmascarar(valor: str) -> str:
         return ""
     return "••••••" + valor[-4:] if len(valor) > 4 else "••••"
 
-def obtener_config_glpi(db: Session) -> dict:
-    """Devuelve la configuración GLPI: la de BD (panel de ajustes) o, si no hay,
-    la de variables de entorno. Respeta el flag 'activo' de la BD.
+def get_config_valor(db: Session, clave: str, default: str = "") -> str:
+    """Devuelve el valor efectivo de una clave de configuración:
+    primero BD (panel de ajustes), luego variables de entorno, luego default."""
+    fila = db.query(models.Configuracion).filter(models.Configuracion.clave == clave).first()
+    if fila and (fila.valor or "").strip():
+        return fila.valor.strip()
+    return os.getenv(clave, default)
 
-    Devuelve un dict listo para glpi_service, o None si no hay configuración activa.
-    """
-    fila = db.query(models.ConfiguracionGLPI).first()
-    if fila:
-        if not fila.activo:
-            return None
-        return {
-            "base_url": fila.base_url,
-            "client_id": fila.client_id,
-            "client_secret": fila.client_secret,
-            "username": fila.username,
-            "password": fila.password,
-            "profile_id": fila.profile_id or "",
-        }
-    env_config = {
-        "base_url": os.getenv("GLPI_BASE_URL", ""),
-        "client_id": os.getenv("GLPI_CLIENT_ID", ""),
-        "client_secret": os.getenv("GLPI_CLIENT_SECRET", ""),
-        "username": os.getenv("GLPI_USERNAME", ""),
-        "password": os.getenv("GLPI_PASSWORD", ""),
-        "profile_id": os.getenv("GLPI_PROFILE_ID", ""),
+def obtener_config_glpi(db: Session):
+    """Devuelve la configuración GLPI (BD > entorno) lista para glpi_service,
+    o None si no está configurada o está pausada desde el panel."""
+    if get_config_valor(db, "GLPI_ACTIVO", "true").lower() in ("false", "0", "no"):
+        return None
+    config = {
+        "base_url": get_config_valor(db, "GLPI_BASE_URL"),
+        "client_id": get_config_valor(db, "GLPI_CLIENT_ID"),
+        "client_secret": get_config_valor(db, "GLPI_CLIENT_SECRET"),
+        "username": get_config_valor(db, "GLPI_USERNAME"),
+        "password": get_config_valor(db, "GLPI_PASSWORD"),
+        "profile_id": get_config_valor(db, "GLPI_PROFILE_ID"),
     }
-    return env_config if glpi_service.config_valida(env_config) else None
+    return config if glpi_service.config_valida(config) else None
+
+# ==============================
+# SINCRONIZACIÓN GLPI
+# ==============================
+CAMPOS_DOCUMENTACION_GLPI = ("causa_raiz", "solucion", "accion_correctiva")
 
 def intentar_sincronizacion_glpi(db: Session, incidente: models.Incidente, valores_anteriores: dict = None):
     """Publica la documentación del incidente como comentario (followup) en el ticket GLPI.
@@ -495,102 +560,98 @@ def update_feature_flag(flag: str, body: schemas.FeatureFlagUpdate, db: Session 
     return f
 
 # ==============================
-# CONFIGURACIÓN GLPI (SOLO ADMIN)
+# CONFIGURACIÓN (SOLO ADMIN)
 # ==============================
-@app.get("/configuracion/glpi", response_model=schemas.ConfiguracionGLPIResponse)
-def get_configuracion_glpi(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
-    fila = db.query(models.ConfiguracionGLPI).first()
-    if fila:
-        return schemas.ConfiguracionGLPIResponse(
-            base_url=fila.base_url,
-            client_id=fila.client_id,
-            client_secret=_enmascarar(fila.client_secret),
-            username=fila.username,
-            password=_enmascarar(fila.password),
-            profile_id=fila.profile_id,
-            activo=fila.activo,
-            origen="bd",
-            configurado=True,
-        )
-    env_config = {
-        "base_url": os.getenv("GLPI_BASE_URL", ""),
-        "client_id": os.getenv("GLPI_CLIENT_ID", ""),
-        "client_secret": os.getenv("GLPI_CLIENT_SECRET", ""),
-        "username": os.getenv("GLPI_USERNAME", ""),
-        "password": os.getenv("GLPI_PASSWORD", ""),
-        "profile_id": os.getenv("GLPI_PROFILE_ID", ""),
-    }
-    if glpi_service.config_valida(env_config):
-        return schemas.ConfiguracionGLPIResponse(
-            base_url=env_config["base_url"],
-            client_id=env_config["client_id"],
-            client_secret=_enmascarar(env_config["client_secret"]),
-            username=env_config["username"],
-            password=_enmascarar(env_config["password"]),
-            profile_id=env_config["profile_id"] or None,
-            activo=True,
-            origen="env",
-            configurado=True,
-        )
-    return schemas.ConfiguracionGLPIResponse(activo=False, origen=None, configurado=False)
+@app.get("/configuracion", response_model=schemas.ConfiguracionResponse)
+def get_configuracion(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    filas = {f.clave: f.valor for f in db.query(models.Configuracion).all()}
+    items = []
+    for item in CATALOGO_CONFIG:
+        clave = item["clave"]
+        valor_bd = (filas.get(clave) or "").strip()
+        valor_env = os.getenv(clave)
+        if valor_bd:
+            valor, origen = valor_bd, "bd"
+        elif valor_env is not None and valor_env.strip():
+            valor, origen = valor_env.strip(), "env"
+        else:
+            valor, origen = None, None
+        items.append(schemas.ConfiguracionItem(
+            clave=clave,
+            categoria=item["categoria"],
+            label=item["label"],
+            descripcion=item.get("descripcion"),
+            tipo=item["tipo"],
+            secreto=item["secreto"],
+            valor=_enmascarar(valor) if (item["secreto"] and valor) else valor,
+            origen=origen,
+            configurado=bool(valor),
+        ))
+    return {"items": items}
 
-@app.put("/configuracion/glpi", response_model=schemas.ConfiguracionGLPIResponse)
-def update_configuracion_glpi(body: schemas.ConfiguracionGLPIUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
-    fila = db.query(models.ConfiguracionGLPI).first()
-    datos = body.dict(exclude_unset=True)
-
-    if fila is None:
-        obligatorios = ("base_url", "client_id", "client_secret", "username", "password")
-        faltan = [c for c in obligatorios if not (datos.get(c) or "").strip()]
-        if faltan:
-            raise HTTPException(status_code=400, detail=f"Faltan datos obligatorios: {', '.join(faltan)}")
-        fila = models.ConfiguracionGLPI(
-            base_url=datos["base_url"].strip(),
-            client_id=datos["client_id"].strip(),
-            client_secret=datos["client_secret"].strip(),
-            username=datos["username"].strip(),
-            password=datos["password"].strip(),
-            profile_id=(datos.get("profile_id") or "").strip() or None,
-            activo=datos.get("activo", True),
-        )
-        db.add(fila)
-    else:
-        # Campos vacíos = mantener el valor actual (útil para secretos enmascarados)
-        for campo in ("base_url", "client_id", "client_secret", "username", "password", "profile_id"):
-            if datos.get(campo) is not None and str(datos[campo]).strip():
-                setattr(fila, campo, str(datos[campo]).strip())
-        if datos.get("activo") is not None:
-            fila.activo = datos["activo"]
-
+@app.put("/configuracion", response_model=schemas.ConfiguracionResponse)
+def update_configuracion(body: schemas.ConfiguracionUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    desconocidas = [c for c in body.valores if c not in CLAVES_CONFIG]
+    if desconocidas:
+        raise HTTPException(status_code=400, detail=f"Claves de configuración desconocidas: {', '.join(desconocidas)}")
+    for clave, valor in body.valores.items():
+        if valor is None:
+            continue
+        fila = db.query(models.Configuracion).filter(models.Configuracion.clave == clave).first()
+        valor_limpio = str(valor).strip()
+        if fila is None:
+            if valor_limpio:
+                db.add(models.Configuracion(clave=clave, valor=valor_limpio, actualizado_por=current_user.id))
+        else:
+            fila.valor = valor_limpio
+            fila.actualizado_por = current_user.id
     db.commit()
-    db.refresh(fila)
-    logger.info(f"GLPI: configuración actualizada por {current_user.username}")
-    return schemas.ConfiguracionGLPIResponse(
-        base_url=fila.base_url,
-        client_id=fila.client_id,
-        client_secret=_enmascarar(fila.client_secret),
-        username=fila.username,
-        password=_enmascarar(fila.password),
-        profile_id=fila.profile_id,
-        activo=fila.activo,
-        origen="bd",
-        configurado=True,
-    )
+    logger.info(f"Configuración actualizada por {current_user.username}: {', '.join(body.valores.keys())}")
+    return get_configuracion(db, current_user)
 
-@app.post("/configuracion/glpi/probar")
-def probar_configuracion_glpi(body: schemas.ConfiguracionGLPIUpdate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
-    # Prueba con los datos del body; los vacíos se toman de la config efectiva (BD/env)
-    config_efectiva = obtener_config_glpi(db) or {}
-    datos = body.dict(exclude_unset=True)
-    config_prueba = {
-        "base_url": (str(datos.get("base_url")).strip() if datos.get("base_url") else "") or config_efectiva.get("base_url", ""),
-        "client_id": (str(datos.get("client_id")).strip() if datos.get("client_id") else "") or config_efectiva.get("client_id", ""),
-        "client_secret": (str(datos.get("client_secret")).strip() if datos.get("client_secret") else "") or config_efectiva.get("client_secret", ""),
-        "username": (str(datos.get("username")).strip() if datos.get("username") else "") or config_efectiva.get("username", ""),
-        "password": (str(datos.get("password")).strip() if datos.get("password") else "") or config_efectiva.get("password", ""),
-        "profile_id": (str(datos.get("profile_id")).strip() if datos.get("profile_id") else "") or config_efectiva.get("profile_id", ""),
-    }
-    ok, mensaje = glpi_service.probar_conexion(config_prueba)
+def _probar_smtp(host: str, port: int, user: str, password: str):
+    """Verifica conexión al servidor SMTP (con STARTTLS y login si hay credenciales)."""
+    try:
+        with smtplib.SMTP(host, port, timeout=10):
+            pass
+        if user:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                server.starttls()
+                server.login(user, password)
+        return True, f"Conexión exitosa a {host}:{port}"
+    except Exception as e:
+        return False, f"Error conectando a {host}:{port}: {e}"
+
+@app.post("/configuracion/probar")
+def probar_configuracion(body: dict, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.require_role(["admin"]))):
+    objetivo = (body.get("objetivo") or "").strip().lower()
+    valores = body.get("valores") or {}
+
+    def efectiva(clave: str, default: str = "") -> str:
+        nuevo = (str(valores.get(clave)).strip() if valores.get(clave) is not None else "")
+        return nuevo or get_config_valor(db, clave, default)
+
+    if objetivo == "glpi":
+        config = {
+            "base_url": efectiva("GLPI_BASE_URL"),
+            "client_id": efectiva("GLPI_CLIENT_ID"),
+            "client_secret": efectiva("GLPI_CLIENT_SECRET"),
+            "username": efectiva("GLPI_USERNAME"),
+            "password": efectiva("GLPI_PASSWORD"),
+            "profile_id": efectiva("GLPI_PROFILE_ID"),
+        }
+        ok, mensaje = glpi_service.probar_conexion(config)
+    elif objetivo == "smtp":
+        host = efectiva("SMTP_HOST")
+        if not host:
+            raise HTTPException(status_code=400, detail="SMTP_HOST no configurado")
+        try:
+            port = int(efectiva("SMTP_PORT", "587"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="SMTP_PORT debe ser numérico")
+        ok, mensaje = _probar_smtp(host, port, efectiva("SMTP_USER"), efectiva("SMTP_PASS"))
+    else:
+        raise HTTPException(status_code=400, detail="objetivo debe ser 'glpi' o 'smtp'")
     if not ok:
         raise HTTPException(status_code=400, detail=mensaje)
     return {"ok": True, "mensaje": mensaje}
@@ -1199,16 +1260,15 @@ def descargar_adjunto(adjunto_id: int, db: Session = Depends(get_db), current_us
 # ==============================
 # NOTIFICACIONES EMAIL
 # ==============================
-SMTP_HOST = os.getenv("SMTP_HOST", "")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASS = os.getenv("SMTP_PASS", "")
-EMAIL_FROM = os.getenv("EMAIL_FROM", "noreply@bitacora.local")
-
 def enviar_notificacion_incidente(incidente, db: Session):
-    if not SMTP_HOST:
+    smtp_host = get_config_valor(db, "SMTP_HOST")
+    if not smtp_host:
         return
     try:
+        smtp_port = int(get_config_valor(db, "SMTP_PORT", "587"))
+        smtp_user = get_config_valor(db, "SMTP_USER")
+        smtp_pass = get_config_valor(db, "SMTP_PASS")
+        email_from = get_config_valor(db, "EMAIL_FROM", "noreply@bitacora.local")
         tecnicos = db.query(models.Usuario).filter(models.Usuario.rol.in_(["admin", "tecnico"])).all()
         destinatarios = [u.email for u in tecnicos if u.email]
         if not destinatarios:
@@ -1223,13 +1283,13 @@ def enviar_notificacion_incidente(incidente, db: Session):
             f"Registrado por: {incidente.usuario.username if incidente.usuario else 'N/A'}"
         )
         msg["Subject"] = f"[Bitácora] Nuevo incidente #{incidente.id}"
-        msg["From"] = EMAIL_FROM
+        msg["From"] = email_from
         msg["To"] = ", ".join(destinatarios)
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            if SMTP_USER:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            if smtp_user:
                 server.starttls()
-                server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(EMAIL_FROM, destinatarios, msg.as_string())
+                server.login(smtp_user, smtp_pass)
+            server.sendmail(email_from, destinatarios, msg.as_string())
         logger.info(f"Notificación enviada a {len(destinatarios)} destinatarios")
     except Exception as e:
         logger.error(f"Error al enviar email: {e}")
@@ -1259,8 +1319,8 @@ def analizar_incidente_ia(
     empresa_fijada_id = current_user.empresa_id if current_user.rol == "tecnico" else None
     
     # 2. Configurar proveedor de IA
-    provider, api_key, base_url, model_name = get_ai_settings()
-    provider, model_name = ensure_ai_config()
+    provider, api_key, base_url, model_name = get_ai_settings(db)
+    provider, model_name = ensure_ai_config(db)
     
     fecha_actual_iso = datetime.now().isoformat()
     
@@ -1439,8 +1499,8 @@ def chat_asesor_ia(
         )
     
     # 3. Configurar proveedor de IA
-    provider, api_key, base_url, model_name = get_ai_settings()
-    provider, model_name = ensure_ai_config()
+    provider, api_key, base_url, model_name = get_ai_settings(db)
+    provider, model_name = ensure_ai_config(db)
     
     fecha_actual_iso = datetime.now().isoformat()
     empresa_fijada_id = current_user.empresa_id if current_user.rol == "tecnico" else None

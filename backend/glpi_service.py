@@ -44,10 +44,12 @@ class GlpiError(Exception):
 
 
 def config_valida(config: dict) -> bool:
-    """Indica si la configuración tiene los datos mínimos para operar."""
+    """Indica si la configuración tiene los datos mínimos para operar.
+    El profile_id es obligatorio: sin él GLPI usa el perfil self-service
+    del usuario, que no tiene permiso para crear seguimientos."""
     if not config:
         return False
-    return all((config.get(k) or "").strip() for k in ("base_url", "client_id", "client_secret", "username", "password"))
+    return all((config.get(k) or "").strip() for k in ("base_url", "client_id", "client_secret", "username", "password", "profile_id"))
 
 
 def _huella_config(config: dict) -> str:

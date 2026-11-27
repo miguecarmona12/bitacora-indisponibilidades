@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict ,EmailStr
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 # --- EMPRESA ---
 
@@ -188,27 +188,25 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
-# --- CONFIGURACIÓN GLPI ---
-class ConfiguracionGLPIUpdate(BaseModel):
-    base_url: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    profile_id: Optional[str] = None
-    activo: Optional[bool] = None
-
-
-class ConfiguracionGLPIResponse(BaseModel):
-    base_url: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None  # enmascarado
-    username: Optional[str] = None
-    password: Optional[str] = None  # enmascarado
-    profile_id: Optional[str] = None
-    activo: bool = False
-    origen: Optional[str] = None  # "bd" (panel de ajustes) | "env" (variables de entorno)
+# --- CONFIGURACIÓN (panel de ajustes) ---
+class ConfiguracionItem(BaseModel):
+    clave: str
+    categoria: str
+    label: str
+    descripcion: Optional[str] = None
+    tipo: str = "text"  # text | password | number
+    secreto: bool = False
+    valor: Optional[str] = None  # enmascarado si es secreto
+    origen: Optional[str] = None  # "bd" (panel) | "env" (entorno) | None (sin valor)
     configurado: bool = False
+
+
+class ConfiguracionResponse(BaseModel):
+    items: List[ConfiguracionItem]
+
+
+class ConfiguracionUpdate(BaseModel):
+    valores: Dict[str, Optional[str]]
 
 
 # --- AI ENDPOINTS SCHEMAS ---

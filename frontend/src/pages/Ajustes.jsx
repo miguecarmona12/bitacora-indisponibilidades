@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { bitacoraService, notificacionService } from '../services/api';
-import { ToggleLeft, Bell, PlugZap } from 'lucide-react';
+import { ToggleLeft, Bell, PlugZap, Sparkles, Mail, Settings2 } from 'lucide-react';
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
@@ -19,7 +19,7 @@ const STYLES = `
 
   .aj-toggle {
     width: 44px; height: 24px; border-radius: 12px; border: none; cursor: pointer;
-    position: relative; transition: background 0.2s;
+    position: relative; transition: background 0.2s; flex-shrink: 0;
   }
   .aj-toggle::after {
     content: ''; position: absolute; top: 2px; width: 20px; height: 20px;
@@ -34,6 +34,22 @@ const STYLES = `
   .dark .aj-toggle.off { background: #555; }
 
   .aj-bg { background: var(--surface); }
+
+  .aj-tab {
+    display: flex; align-items: center; gap: 7px; padding: 9px 14px;
+    font-size: 12px; font-weight: 700; border: none; cursor: pointer;
+    background: transparent; color: var(--text-3); border-radius: 10px;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .aj-tab:hover { color: var(--text-1); background: rgba(124,58,237,0.06); }
+  .aj-tab.active { color: white; background: linear-gradient(135deg, #7c3aed, #a21caf); }
+
+  .aj-input {
+    width: 100%; padding: '9px 12px'; font-size: 13;
+    background: var(--surface); color: var(--text-1);
+    border: 1px solid var(--border); border-radius: 10; outline: 'none';
+  }
+  .aj-input:focus { border-color: #7c3aed; }
 `;
 
 const FEATURES = [
@@ -42,6 +58,23 @@ const FEATURES = [
 
 ];
 
+const CATEGORIAS = [
+  { id: 'ia', label: 'Inteligencia Artificial', icon: Sparkles, desc: 'Proveedor y credenciales del asistente de IA' },
+  { id: 'glpi', label: 'GLPI', icon: PlugZap, desc: 'Cuando un incidente tenga ticket GLPI y documentación (Causa Raíz, Solución o Acción Correctiva), se publica automáticamente como comentario en el caso original de GLPI.' },
+  { id: 'email', label: 'Email / SMTP', icon: Mail, desc: 'Servidor de correo para notificaciones de incidentes' },
+  { id: 'general', label: 'General', icon: Settings2, desc: 'URLs y parámetros del sistema' },
+];
+
+const initForm = (items) => {
+  const init = {};
+  items.forEach(it => {
+    if (it.secreto) init[it.clave] = '';
+    else if (it.tipo === 'boolean') init[it.clave] = it.valor ?? 'true';
+    else init[it.clave] = it.valor ?? '';
+  });
+  return init;
+};
+
 const Ajustes = () => {
   const queryClient = useQueryClient();
   const [flags, setFlags] = useState([]);
@@ -49,14 +82,13 @@ const Ajustes = () => {
   const [prefsNotif, setPrefsNotif] = useState([]);
   const [loadingPrefs, setLoadingPrefs] = useState(true);
 
-  const [glpi, setGlpi] = useState(null);
-  const [glpiForm, setGlpiForm] = useState({
-    base_url: '', client_id: '', client_secret: '', username: '', password: '', profile_id: '',
-  });
-  const [glpiActivo, setGlpiActivo] = useState(true);
-  const [loadingGlpi, setLoadingGlpi] = useState(true);
-  const [guardandoGlpi, setGuardandoGlpi] = useState(false);
-  const [probandoGlpi, setProbandoGlpi] = useState(false);
+  const [configItems, setConfigItems] = useState([]);
+  const [catActiva, setCatActiva] = useState('ia');
+  const [formValues, setFormValues] = useState({});
+  const [dirty, setDirty] = useState(() => new Set());
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [guardandoConfig, setGuardandoConfig] = useState(false);
+  const [probando, setProbando] = useState('');
 
   useEffect(() => {
     bitacoraService.getFeatureFlags()
@@ -65,38 +97,62 @@ const Ajustes = () => {
     notificacionService.getPreferencias()
       .then(data => { setPrefsNotif(data); setLoadingPrefs(false); })
       .catch(() => setLoadingPrefs(false));
-    bitacoraService.getConfigGlpi()
+    bitacoraService.getConfig()
       .then(data => {
-        setGlpi(data);
-        setGlpiActivo(data.activo);
-        setLoadingGlpi(false);
+        setConfigItems(data.items);
+        setFormValues(initForm(data.items));
+        setLoadingConfig(false);
       })
-      .catch(() => setLoadingGlpi(false));
+      .catch(() => setLoadingConfig(false));
   }, []);
 
-  const guardarGlpi = async () => {
-    setGuardandoGlpi(true);
+  const marcarDirty = (clave, valor) => {
+    setFormValues(f => ({ ...f, [clave]: valor }));
+    setDirty(d => { const n = new Set(d); n.add(clave); return n; });
+  };
+
+  const valoresDirty = () => {
+    const valores = {};
+    dirty.forEach(clave => {
+      const item = configItems.find(i => i.clave === clave);
+      const v = (formValues[clave] ?? '').trim();
+      if (item?.secreto && !v) return; // secreto vacío = mantener el actual
+      valores[clave] = v;
+    });
+    return valores;
+  };
+
+  const guardarConfig = async () => {
+    const valores = valoresDirty();
+    if (!Object.keys(valores).length) { toast.info('No hay cambios por guardar'); return; }
+    setGuardandoConfig(true);
     try {
-      const resp = await bitacoraService.updateConfigGlpi({ ...glpiForm, activo: glpiActivo });
-      setGlpi(resp);
-      setGlpiForm(f => ({ ...f, client_secret: '', password: '' }));
-      toast.success('Configuración GLPI guardada');
+      const resp = await bitacoraService.updateConfig(valores);
+      setConfigItems(resp.items);
+      setFormValues(initForm(resp.items));
+      setDirty(new Set());
+      toast.success('Configuración guardada');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al guardar la configuración');
     } finally {
-      setGuardandoGlpi(false);
+      setGuardandoConfig(false);
     }
   };
 
-  const probarGlpi = async () => {
-    setProbandoGlpi(true);
+  const probar = async (objetivo) => {
+    setProbando(objetivo);
     try {
-      const resp = await bitacoraService.probarConfigGlpi({ ...glpiForm, activo: glpiActivo });
-      toast.success(resp.mensaje || 'Conexión exitosa con GLPI');
+      const valores = {};
+      dirty.forEach(clave => {
+        const v = (formValues[clave] ?? '').trim();
+        if (v) valores[clave] = v;
+      });
+      const resp = await bitacoraService.probarConfig(objetivo, valores);
+      toast.success(resp.mensaje || 'Prueba exitosa');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'No se pudo conectar con GLPI');
+      toast.error(err.response?.data?.detail || 'La prueba falló');
     } finally {
-      setProbandoGlpi(false);
+      setProbando('');
     }
   };
 
@@ -121,6 +177,9 @@ const Ajustes = () => {
       toast.error('Error al actualizar preferencia');
     }
   };
+
+  const itemsCategoria = configItems.filter(i => i.categoria === catActiva);
+  const hayCambios = dirty.size > 0;
 
   return (
     <div className="aj-root aj-bg min-h-screen pt-20 px-4 pb-16">
@@ -181,7 +240,7 @@ const Ajustes = () => {
           </div>
         </div>
 
-        {/* Preferencias de Notificaci�n */}
+        {/* Preferencias de Notificación */}
         <div className="aj-card" style={{ marginTop: 24 }}>
           <div className="flex items-center gap-2 px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
             <Bell size={18} style={{ color: 'var(--violet)' }} />
@@ -216,90 +275,131 @@ const Ajustes = () => {
           )}
         </div>
 
-        {/* Integración GLPI */}
+        {/* Configuración del sistema */}
         <div className="aj-card" style={{ marginTop: 24 }}>
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-            <div className="flex items-center gap-2">
-              <PlugZap size={18} style={{ color: 'var(--violet)' }} />
-              <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>Integración GLPI</h2>
-              {glpi?.origen && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                  background: glpi.origen === 'bd' ? 'rgba(124,58,237,0.12)' : 'rgba(124,58,237,0.06)',
-                  color: 'var(--violet)', letterSpacing: '.04em',
-                }}>
-                  {glpi.origen === 'bd' ? 'CONFIGURADA AQUÍ' : 'VARIABLES DE ENTORNO'}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => setGlpiActivo(a => !a)}
-              className={`aj-toggle ${glpiActivo ? 'on' : 'off'}`}
-              title={glpiActivo ? 'Desactivar integración' : 'Activar integración'}
-            />
+          <div className="flex items-center gap-2 px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <Settings2 size={18} style={{ color: 'var(--violet)' }} />
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>Configuración del sistema</h2>
+            {hayCambios && (
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(124,58,237,0.12)', color: 'var(--violet)', letterSpacing: '.04em' }}>
+                CAMBIOS SIN GUARDAR
+              </span>
+            )}
           </div>
-          {loadingGlpi ? (
+          {loadingConfig ? (
             <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--text-3)' }}>Cargando...</div>
           ) : (
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <p style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
-                Cuando un incidente tenga número de ticket GLPI y documentación (Causa Raíz, Solución o Acción Correctiva),
-                se publica automáticamente como comentario en el caso original de GLPI.
-                {!glpi?.configurado && ' Configura los datos de conexión para activarla.'}
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-                {[
-                  { key: 'base_url', label: 'URL de GLPI', ph: 'https://sos.ux.technology', type: 'text' },
-                  { key: 'client_id', label: 'Client ID (OAuth)', ph: glpi?.client_id || 'Client ID', type: 'text' },
-                  { key: 'client_secret', label: 'Client Secret', ph: glpi?.client_secret || '••••', type: 'password' },
-                  { key: 'username', label: 'Usuario GLPI', ph: glpi?.username || 'usuario de servicio', type: 'text' },
-                  { key: 'password', label: 'Contraseña GLPI', ph: glpi?.password || '••••', type: 'password' },
-                  { key: 'profile_id', label: 'ID de Perfil (opcional)', ph: glpi?.profile_id || 'ej: 12', type: 'text' },
-                ].map(campo => (
-                  <div key={campo.key}>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 5 }}>
-                      {campo.label}
-                    </label>
-                    <input
-                      type={campo.type}
-                      placeholder={campo.ph}
-                      value={glpiForm[campo.key]}
-                      onChange={e => setGlpiForm(f => ({ ...f, [campo.key]: e.target.value }))}
-                      style={{
-                        width: '100%', padding: '9px 12px', fontSize: 13,
-                        background: 'var(--surface)', color: 'var(--text-1)',
-                        border: '1px solid var(--border)', borderRadius: 10, outline: 'none',
-                      }}
-                    />
-                  </div>
-                ))}
+            <div>
+              {/* Tabs de categoría */}
+              <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+                {CATEGORIAS.map(cat => {
+                  const Icon = cat.icon;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setCatActiva(cat.id)}
+                      className={`aj-tab ${catActiva === cat.id ? 'active' : ''}`}
+                    >
+                      <Icon size={14} />
+                      {cat.label}
+                    </button>
+                  );
+                })}
               </div>
-              <p style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
-                Los secretos vacíos mantienen el valor actual. En GLPI: Configuración &gt; Clientes OAuth (grant "Password", scope "api").
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={guardarGlpi}
-                  disabled={guardandoGlpi}
-                  style={{
-                    padding: '10px 20px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
-                    background: 'linear-gradient(135deg, #7c3aed, #a21caf)', color: 'white', cursor: 'pointer',
-                    opacity: guardandoGlpi ? 0.6 : 1,
-                  }}
-                >
-                  {guardandoGlpi ? 'Guardando...' : 'Guardar'}
-                </button>
-                <button
-                  onClick={probarGlpi}
-                  disabled={probandoGlpi}
-                  style={{
-                    padding: '10px 20px', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer',
-                    background: 'transparent', color: 'var(--violet)', border: '1px solid var(--violet)',
-                    opacity: probandoGlpi ? 0.6 : 1,
-                  }}
-                >
-                  {probandoGlpi ? 'Probando...' : 'Probar conexión'}
-                </button>
+
+              <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
+                  {CATEGORIAS.find(c => c.id === catActiva)?.desc}
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                  {itemsCategoria.map(item => (
+                    <div key={item.clave}>
+                      <div className="flex items-center justify-between" style={{ marginBottom: 5 }}>
+                        <label style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-3)' }}>
+                          {item.label}
+                        </label>
+                        {item.origen && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 5,
+                            background: item.origen === 'bd' ? 'rgba(124,58,237,0.12)' : 'rgba(113,113,122,0.12)',
+                            color: item.origen === 'bd' ? 'var(--violet)' : 'var(--text-3)',
+                            letterSpacing: '.04em',
+                          }}>
+                            {item.origen === 'bd' ? 'BD' : 'ENV'}
+                          </span>
+                        )}
+                      </div>
+                      {item.tipo === 'boolean' ? (
+                        <div className="flex items-center gap-2" style={{ padding: '2px 0' }}>
+                          <button
+                            onClick={() => marcarDirty(item.clave, formValues[item.clave] === 'true' ? 'false' : 'true')}
+                            className={`aj-toggle ${formValues[item.clave] === 'true' ? 'on' : 'off'}`}
+                            title={formValues[item.clave] === 'true' ? 'Desactivar' : 'Activar'}
+                          />
+                          <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+                            {formValues[item.clave] === 'true' ? 'Activa' : 'Pausada'}
+                          </span>
+                        </div>
+                      ) : (
+                        <input
+                          type={item.secreto ? 'password' : (item.tipo === 'number' ? 'text' : 'text')}
+                          placeholder={item.secreto ? (item.valor || '••••') : (item.valor || item.descripcion || '')}
+                          value={formValues[item.clave] ?? ''}
+                          onChange={e => marcarDirty(item.clave, e.target.value)}
+                          className="aj-input"
+                          style={{ width: '100%', padding: '9px 12px', fontSize: 13, background: 'var(--surface)', color: 'var(--text-1)', border: '1px solid var(--border)', borderRadius: 10, outline: 'none' }}
+                        />
+                      )}
+                      {item.descripcion && item.tipo !== 'boolean' && (
+                        <p style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.4 }}>{item.descripcion}</p>
+                      )}
+                      {item.secreto && (
+                        <p style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 4 }}>Vacío = mantiene el valor actual</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3" style={{ marginTop: 4 }}>
+                  <button
+                    onClick={guardarConfig}
+                    disabled={guardandoConfig || !hayCambios}
+                    style={{
+                      padding: '10px 20px', fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 10,
+                      background: 'linear-gradient(135deg, #7c3aed, #a21caf)', color: 'white', cursor: 'pointer',
+                      opacity: (guardandoConfig || !hayCambios) ? 0.5 : 1,
+                    }}
+                  >
+                    {guardandoConfig ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                  {catActiva === 'glpi' && (
+                    <button
+                      onClick={() => probar('glpi')}
+                      disabled={probando === 'glpi'}
+                      style={{
+                        padding: '10px 20px', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer',
+                        background: 'transparent', color: 'var(--violet)', border: '1px solid var(--violet)',
+                        opacity: probando === 'glpi' ? 0.6 : 1,
+                      }}
+                    >
+                      {probando === 'glpi' ? 'Probando...' : 'Probar conexión'}
+                    </button>
+                  )}
+                  {catActiva === 'email' && (
+                    <button
+                      onClick={() => probar('smtp')}
+                      disabled={probando === 'smtp'}
+                      style={{
+                        padding: '10px 20px', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer',
+                        background: 'transparent', color: 'var(--violet)', border: '1px solid var(--violet)',
+                        opacity: probando === 'smtp' ? 0.6 : 1,
+                      }}
+                    >
+                      {probando === 'smtp' ? 'Probando...' : 'Probar email'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
